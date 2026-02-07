@@ -1,10 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator, Image, Modal, TouchableWithoutFeedback } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
-import { api, setAuthToken } from '../services/api';
+import { api, setAuthToken, BASE_URL } from '../services/api';
 import Map from '../components/Map';
 import { Group, Pilgrim } from '../types';
+
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Swipeable } from 'react-native-gesture-handler';
+import { useToast } from '../components/ToastContext';
+import * as Location from 'expo-location';
+import * as Battery from 'expo-battery';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ModeratorDashboard'>;
@@ -15,6 +22,7 @@ interface UserProfile {
     email: string;
     phone_number: string;
     role: string;
+    profile_picture?: string;
 }
 
 export default function ModeratorDashboard({ route, navigation }: Props) {
@@ -22,8 +30,21 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
     const [loading, setLoading] = useState(true);
     const [allPilgrims, setAllPilgrims] = useState<Pilgrim[]>([]);
     const [isMapVisible, setIsMapVisible] = useState(true);
-    const [showProfile, setShowProfile] = useState(false);
     const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [showProfile, setShowProfile] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const { showToast } = useToast();
+
+    const fetchNotifications = async () => {
+        try {
+            const response = await api.get('/notifications?limit=1');
+            if (response.data.success) {
+                setUnreadCount(response.data.unread_count);
+            }
+        } catch (error) {
+            console.error('Failed to fetch unread count', error);
+        }
+    };
 
     const fetchGroups = async () => {
         try {
@@ -56,14 +77,95 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
         }
     };
 
-    useEffect(() => {
-        fetchGroups();
-        fetchProfile();
-    }, []);
+    // Location Tracking
+    const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+
+    const setupLocationTracking = async () => {
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') return;
+
+            // Get initial battery
+            const level = await Battery.getBatteryLevelAsync();
+            setBatteryLevel(Math.round(level * 100));
+
+            // Start watching position
+            await Location.watchPositionAsync(
+                {
+                    accuracy: Location.Accuracy.High,
+                    timeInterval: 60000, // Update every minute
+                    distanceInterval: 50, // OR every 50 meters
+                },
+                async (location) => {
+                    try {
+                        const battery = await Battery.getBatteryLevelAsync();
+                        await api.put('/auth/location', {
+                            latitude: location.coords.latitude,
+                            longitude: location.coords.longitude,
+                            battery: Math.round(battery * 100)
+                        });
+                        console.log('Moderator location updated');
+                    } catch (error) {
+                        console.log('Failed to update location');
+                    }
+                }
+            );
+        } catch (e) {
+            console.log('Error setting up location tracking');
+        }
+    };
+
+    // Refresh data when screen comes into focus
+    useFocusEffect(
+        useCallback(() => {
+            fetchGroups();
+            fetchProfile();
+            fetchNotifications();
+            setupLocationTracking(); // Start tracking
+        }, [])
+    );
 
     const handleLogout = async () => {
         setAuthToken(null);
         navigation.replace('Login');
+    };
+
+    const handleDeleteGroup = async (groupId: string, groupName: string) => {
+        Alert.alert(
+            "Delete Group",
+            `Are you sure you want to delete "${groupName}"?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await api.delete(`/groups/${groupId}`);
+                            showToast(`${groupName} deleted`, 'success');
+                            fetchGroups(); // Refresh list
+                        } catch (error: any) {
+                            showToast('Failed to delete group', 'error');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const renderRightActions = (groupId: string, groupName: string, close: () => void) => {
+        return (
+            <TouchableOpacity
+                style={styles.deleteAction}
+                onPress={() => {
+                    close();
+                    handleDeleteGroup(groupId, groupName);
+                }}
+            >
+                <Ionicons name="trash-outline" size={24} color="white" />
+                <Text style={styles.deleteActionText}>Delete</Text>
+            </TouchableOpacity>
+        );
     };
 
     const mapMarkers = allPilgrims
@@ -81,9 +183,34 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
             {/* Header */}
             <SafeAreaView style={styles.header} edges={['top']}>
                 <Text style={styles.headerTitle}>Dashboard</Text>
-                <TouchableOpacity onPress={() => setShowProfile(true)} style={styles.profileButton}>
-                    <Text style={styles.profileButtonText}>👤</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 15, alignItems: 'center' }}>
+                    <TouchableOpacity
+                        style={styles.notificationButton}
+                        onPress={() => navigation.navigate('Notifications')}
+                    >
+                        <Ionicons name="notifications-outline" size={24} color="#333" />
+                        {unreadCount > 0 && (
+                            <View style={styles.badge}>
+                                <Text style={styles.badgeText}>
+                                    {unreadCount > 9 ? '9+' : unreadCount}
+                                </Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => setShowProfile(true)}>
+                        {profile?.profile_picture ? (
+                            <Image
+                                source={{ uri: `${BASE_URL.replace('/api', '')}/uploads/${profile.profile_picture}` }}
+                                style={{ width: 40, height: 40, borderRadius: 20 }}
+                            />
+                        ) : (
+                            <View style={styles.profileButton}>
+                                <Ionicons name="person-circle-outline" size={32} color="#666" />
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                </View>
             </SafeAreaView>
 
             {/* Profile Modal */}
@@ -99,7 +226,14 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                             <View style={styles.profileCard}>
                                 <View style={styles.profileHeader}>
                                     <View style={styles.avatarLarge}>
-                                        <Text style={styles.avatarText}>{profile?.full_name?.charAt(0) || 'M'}</Text>
+                                        {profile?.profile_picture ? (
+                                            <Image
+                                                source={{ uri: `${BASE_URL.replace('/api', '')}/uploads/${profile.profile_picture}` }}
+                                                style={{ width: 80, height: 80, borderRadius: 40 }}
+                                            />
+                                        ) : (
+                                            <Text style={styles.avatarText}>{profile?.full_name?.charAt(0) || 'M'}</Text>
+                                        )}
                                     </View>
                                     <Text style={styles.profileName}>{profile?.full_name || 'Moderator'}</Text>
                                     <Text style={styles.profileRole}>Verified Moderator</Text>
@@ -115,6 +249,16 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                                         <Text style={styles.detailValue}>{profile?.phone_number || 'Loading...'}</Text>
                                     </View>
                                 </View>
+
+                                <TouchableOpacity
+                                    style={styles.editProfileButton}
+                                    onPress={() => {
+                                        setShowProfile(false);
+                                        navigation.navigate('EditProfile');
+                                    }}
+                                >
+                                    <Text style={styles.editProfileText}>Edit Profile</Text>
+                                </TouchableOpacity>
 
                                 <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                                     <Text style={styles.logoutText}>Log Out</Text>
@@ -149,16 +293,24 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                         data={groups}
                         keyExtractor={item => item._id}
                         renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={styles.groupCard}
-                                onPress={() => navigation.navigate('GroupDetails', { groupId: item._id, groupName: item.group_name })}
+                            <Swipeable
+                                renderRightActions={(progress, dragX, ref) =>
+                                    renderRightActions(item._id, item.group_name, ref?.close || (() => { }))
+                                }
                             >
-                                <View>
-                                    <Text style={styles.groupName}>{item.group_name}</Text>
-                                    <Text style={styles.groupDate}>Created: {new Date(item.created_at).toLocaleDateString()}</Text>
-                                </View>
-                                <Text style={styles.pilgrimCount}>{item.pilgrims?.length || 0}</Text>
-                            </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.groupCard}
+                                    onPress={() => navigation.navigate('GroupDetails', { groupId: item._id, groupName: item.group_name })}
+                                >
+                                    <View>
+                                        <Text style={styles.groupName}>{item.group_name}</Text>
+                                        <Text style={styles.groupDate}>Created: {new Date(item.created_at).toLocaleDateString()}</Text>
+                                    </View>
+                                    <View style={styles.pilgrimCountBadge}>
+                                        <Text style={styles.pilgrimCountText}>{item.pilgrims?.length || 0}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </Swipeable>
                         )}
                         refreshing={loading}
                         onRefresh={() => { fetchGroups(); fetchProfile(); }}
@@ -200,12 +352,39 @@ const styles = StyleSheet.create({
         color: '#333',
     },
     profileButton: {
-        padding: 8,
-        backgroundColor: '#f0f0f0',
-        borderRadius: 20,
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    notificationButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
+    },
+    badge: {
+        position: 'absolute',
+        top: -2,
+        right: -2,
+        backgroundColor: '#FF3B30',
+        borderRadius: 10,
+        width: 18,
+        height: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: 'white',
+    },
+    badgeText: {
+        color: 'white',
+        fontSize: 10,
+        fontWeight: 'bold',
     },
     profileButtonText: {
         fontSize: 20,
+        textAlign: 'center',
     },
     modalOverlay: {
         flex: 1,
@@ -277,6 +456,19 @@ const styles = StyleSheet.create({
         color: '#333',
         fontSize: 14,
         fontWeight: '500',
+    },
+    editProfileButton: {
+        backgroundColor: '#f0f0f0',
+        width: '100%',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    editProfileText: {
+        color: '#333',
+        fontSize: 16,
+        fontWeight: '600',
     },
     logoutButton: {
         backgroundColor: '#FF3B30',
@@ -351,20 +543,39 @@ const styles = StyleSheet.create({
         color: '#333',
         marginBottom: 4,
     },
+    deleteAction: {
+        backgroundColor: '#EF4444',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 80,
+        marginVertical: 0, // Match exact height without extra margin
+        borderRadius: 12,
+        marginLeft: 10,
+        marginBottom: 12, // Match the card's bottom margin
+    },
+    deleteActionText: {
+        color: 'white',
+        fontWeight: '600',
+        fontSize: 12,
+        marginTop: 4,
+    },
     groupDate: {
         fontSize: 12,
         color: '#999',
     },
-    pilgrimCount: {
+    pilgrimCountBadge: {
+        backgroundColor: '#E3F2FD',
+        minWidth: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+    },
+    pilgrimCountText: {
         fontSize: 16,
         fontWeight: 'bold',
         color: '#007AFF',
-        backgroundColor: '#E3F2FD',
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        textAlign: 'center',
-        lineHeight: 32, // Vertically center text
     },
     emptyText: {
         textAlign: 'center',
