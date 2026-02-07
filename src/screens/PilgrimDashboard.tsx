@@ -141,6 +141,15 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
                         <Ionicons name="person-circle-outline" size={32} color="#1E293B" />
                     </TouchableOpacity>
                 </View>
+                {!groupInfo && (
+                    <TouchableOpacity
+                        style={styles.joinButton}
+                        onPress={() => navigation.navigate('JoinGroup', { userId: route.params.userId })}
+                    >
+                        <Ionicons name="enter-outline" size={20} color="white" style={{ marginRight: 8 }} />
+                        <Text style={styles.joinButtonText}>Join Group via Code</Text>
+                    </TouchableOpacity>
+                )}
             </SafeAreaView>
 
             {/* Map */}
@@ -276,6 +285,23 @@ const styles = StyleSheet.create({
         backgroundColor: '#F1F5F9', // Slate 100
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    joinButton: {
+        flexDirection: 'row',
+        backgroundColor: '#2563eb',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        alignItems: 'center',
+        marginBottom: 10,
+        marginRight: 20,
+        marginLeft: 20,
+        alignSelf: 'flex-start'
+    },
+    joinButtonText: {
+        color: 'white',
+        fontWeight: '600',
+        fontSize: 14
     },
     mapContainer: {
         flex: 1,

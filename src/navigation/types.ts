@@ -12,4 +12,6 @@ export type RootStackParamList = {
     AdminDashboard: { userId: string };
     PilgrimSignUp: { token: string };
     PilgrimMessagesScreen: { groupId: string; groupName: string };
+    JoinGroup: { userId: string };
+    CommunicationScreen: { groupId: string };
 };

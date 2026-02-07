@@ -60,8 +60,15 @@ export default function PilgrimSignUpScreen() {
             navigation.replace('PilgrimDashboard', { userId: user_id });
 
         } catch (error: any) {
-            const errorMessage = error.response?.data?.message || 'Registration failed';
-            showToast(errorMessage, 'error');
+            // Handle structured validation errors
+            if (error.response?.data?.errors) {
+                const errors = error.response.data.errors;
+                const firstError = Object.values(errors)[0] as string;
+                showToast(firstError, 'error', { title: 'Registration Failed' });
+            } else {
+                const errorMessage = error.response?.data?.message || 'Registration failed';
+                showToast(errorMessage, 'error');
+            }
         } finally {
             setLoading(false);
         }

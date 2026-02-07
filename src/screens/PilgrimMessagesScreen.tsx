@@ -16,9 +16,12 @@ interface Message {
     media_url?: string;
     created_at: string;
     sender_id: {
+        _id: string;
         full_name: string;
-        role: string;
+        role?: string; // Role might be undefined for Pilgrims if not explicitly set
+        profile_picture?: string;
     };
+    sender_model: 'User' | 'Pilgrim';
 }
 
 export default function PilgrimMessagesScreen({ navigation, route }: Props) {
@@ -76,10 +79,18 @@ export default function PilgrimMessagesScreen({ navigation, route }: Props) {
         const isPlaying = playingId === item._id;
 
         return (
-            <View style={styles.messageCard}>
+            <View style={[
+                styles.messageCard,
+                item.sender_model === 'Pilgrim' ? styles.messageCardPilgrim : styles.messageCardModerator
+            ]}>
                 <View style={styles.headerRow}>
                     <Text style={styles.senderName}>{item.sender_id.full_name}</Text>
-                    <Text style={styles.senderRole}>{item.sender_id.role}</Text>
+                    <Text style={[
+                        styles.senderRole,
+                        item.sender_model === 'Pilgrim' ? styles.rolePilgrim : styles.roleModerator
+                    ]}>
+                        {item.sender_model === 'Pilgrim' ? 'Pilgrim' : (item.sender_id.role || 'Moderator')}
+                    </Text>
                 </View>
 
                 {item.type === 'text' && (
@@ -160,7 +171,6 @@ const styles = StyleSheet.create({
         color: '#999',
     },
     messageCard: {
-        backgroundColor: 'white',
         padding: 16,
         borderRadius: 12,
         marginBottom: 12,
@@ -169,6 +179,16 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 2,
         elevation: 2,
+    },
+    messageCardModerator: {
+        backgroundColor: 'white',
+        borderLeftWidth: 4,
+        borderLeftColor: '#007AFF', // Blue for moderators
+    },
+    messageCardPilgrim: {
+        backgroundColor: '#F0F9FF', // Light blue/white for pilgrims
+        borderLeftWidth: 4,
+        borderLeftColor: '#64748B', // Grey/Slate for pilgrims
     },
     headerRow: {
         flexDirection: 'row',
@@ -183,11 +203,16 @@ const styles = StyleSheet.create({
     senderRole: {
         fontSize: 12,
         color: 'white',
-        backgroundColor: '#007AFF',
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 8,
         overflow: 'hidden',
+    },
+    roleModerator: {
+        backgroundColor: '#007AFF',
+    },
+    rolePilgrim: {
+        backgroundColor: '#64748B',
     },
     content: {
         fontSize: 16,

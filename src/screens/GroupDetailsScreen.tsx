@@ -31,7 +31,8 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
     const fetchGroupDetails = async () => {
         try {
             setLoading(true);
-            const response = await api.get(`/ groups / ${groupId} `);
+            setLoading(true);
+            const response = await api.get(`/groups/${groupId}`);
             // Backend returns group object directly for single group
             if (response.data) {
                 setPilgrims(response.data.pilgrims || []);
@@ -56,7 +57,7 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
 
         setAdding(true);
         try {
-            const response = await api.post(`/ groups / ${groupId}/add-pilgrim`, {
+            const response = await api.post(`/groups/${groupId}/add-pilgrim`, {
                 full_name: newPilgrimName,
                 national_id: newPilgrimNationalId,
                 phone_number: newPilgrimPhone,

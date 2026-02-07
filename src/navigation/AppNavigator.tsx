@@ -18,6 +18,8 @@ import { ToastProvider } from '../components/ToastContext';
 import * as Linking from 'expo-linking';
 import PilgrimSignUpScreen from '../screens/PilgrimSignUpScreen';
 import PilgrimMessagesScreen from '../screens/PilgrimMessagesScreen';
+import JoinGroupScreen from '../screens/JoinGroupScreen';
+import CommunicationScreen from '../screens/CommunicationScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -50,6 +52,8 @@ export default function AppNavigator() {
                     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
                     <Stack.Screen name="PilgrimSignUp" component={PilgrimSignUpScreen} />
                     <Stack.Screen name="PilgrimMessagesScreen" component={PilgrimMessagesScreen} />
+                    <Stack.Screen name="JoinGroup" component={JoinGroupScreen} />
+                    <Stack.Screen name="CommunicationScreen" component={CommunicationScreen} />
                 </Stack.Navigator>
             </NavigationContainer>
         </ToastProvider>

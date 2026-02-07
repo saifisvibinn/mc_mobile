@@ -46,7 +46,16 @@ export default function SignUpScreen({ navigation }: Props) {
             setTimeout(() => navigation.navigate('VerifyEmail', { email }), 2000);
         } catch (error: any) {
             console.error('Registration Error:', error);
-            showToast(error.response?.data?.message || 'Something went wrong', 'error', { title: 'Registration Failed' });
+
+            // Handle structured validation errors from backend
+            if (error.response?.data?.errors) {
+                const errors = error.response.data.errors;
+                const firstErrorField = Object.keys(errors)[0];
+                const errorMessage = errors[firstErrorField];
+                showToast(errorMessage, 'error', { title: 'Validation Error' });
+            } else {
+                showToast(error.response?.data?.message || 'Something went wrong', 'error', { title: 'Registration Failed' });
+            }
         } finally {
             setLoading(false);
         }
