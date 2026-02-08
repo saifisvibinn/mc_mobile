@@ -67,11 +67,33 @@ export default function ComposeMessageModal({ visible, onClose, groupId, onSucce
     const playRecording = async () => {
         if (!audioUri) return;
         try {
-            const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
-            setSound(sound);
+            // If already playing, pause it
+            if (sound && isPlaying) {
+                await sound.pauseAsync();
+                setIsPlaying(false);
+                return;
+            }
+
+            // If paused, resume
+            if (sound && !isPlaying) {
+                await sound.playAsync();
+                setIsPlaying(true);
+                return;
+            }
+
+            // Set audio mode to play through speaker (not ear speaker)
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: false,
+            });
+
+            const { sound: newSound } = await Audio.Sound.createAsync({ uri: audioUri });
+            setSound(newSound);
             setIsPlaying(true);
-            await sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
+            await newSound.playAsync();
+
+            newSound.setOnPlaybackStatusUpdate((status) => {
                 if (status.isLoaded && status.didJustFinish) {
                     setIsPlaying(false);
                 }
@@ -82,8 +104,13 @@ export default function ComposeMessageModal({ visible, onClose, groupId, onSucce
     };
 
     const discardRecording = () => {
+        if (sound) {
+            sound.unloadAsync();
+            setSound(null);
+        }
         setAudioUri(null);
         setRecordingStatus('idle');
+        setIsPlaying(false);
     };
 
     const handleSend = async () => {
