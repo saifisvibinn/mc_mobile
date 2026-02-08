@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { api, clearAuthToken } from '../services/api';
@@ -12,6 +12,7 @@ interface PilgrimProfile {
     _id: string;
     full_name: string;
     email?: string;
+    email_verified?: boolean;
     phone_number?: string;
     national_id?: string;
     medical_history?: string;
@@ -22,22 +23,102 @@ interface PilgrimProfile {
 export default function PilgrimProfileScreen({ navigation, route }: Props) {
     const [profile, setProfile] = useState<PilgrimProfile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showEmailInput, setShowEmailInput] = useState(false);
+    const [newEmail, setNewEmail] = useState('');
+    const [updatingEmail, setUpdatingEmail] = useState(false);
     const { showToast } = useToast();
 
     useEffect(() => {
         fetchProfile();
     }, []);
 
+    // Refresh profile when screen comes into focus (e.g., after verification)
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            fetchProfile();
+        });
+        return unsubscribe;
+    }, [navigation]);
+
     const fetchProfile = async () => {
         try {
-            const response = await api.get('/pilgrim/profile');
+            const response = await api.get('/auth/me'); // Use generic profile endpoint which now supports pilgrims
             setProfile(response.data);
+            if (response.data.email) {
+                setNewEmail(response.data.email);
+            }
         } catch (error) {
             console.error('Fetch profile error:', error);
             showToast('Failed to load profile', 'error');
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleUpdateEmail = async () => {
+        if (!newEmail || !newEmail.includes('@')) {
+            showToast('Please enter a valid email', 'error');
+            return;
+        }
+
+        setUpdatingEmail(true);
+        try {
+            await api.post('/auth/add-email', { email: newEmail });
+            showToast('Email added. Sending verification code...', 'success');
+
+            // Now send verification code
+            await api.post('/auth/send-email-verification');
+            showToast('Verification code sent to your email', 'success');
+            setShowEmailInput(false);
+
+            // Navigate to verify
+            navigation.navigate('VerifyEmail', { email: newEmail, isPilgrim: true });
+        } catch (error: any) {
+            showToast(error.response?.data?.message || 'Failed to update email', 'error');
+        } finally {
+            setUpdatingEmail(false);
+        }
+    };
+
+    const handleRequestModerator = async () => {
+        if (!profile?.email_verified) {
+            Alert.alert(
+                'Email Verification Required',
+                'You must verify your email address before requesting to become a moderator.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Verify Now', onPress: () => {
+                            if (profile?.email) {
+                                navigation.navigate('VerifyEmail', { email: profile.email, isPilgrim: true });
+                            } else {
+                                setShowEmailInput(true);
+                            }
+                        }
+                    }
+                ]
+            );
+            return;
+        }
+
+        Alert.alert(
+            'Request Moderator Access',
+            'Do you want to request to become a moderator? An admin will review your request.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Request',
+                    onPress: async () => {
+                        try {
+                            await api.post('/auth/request-moderator');
+                            Alert.alert('Success', 'Your request has been submitted.');
+                        } catch (error: any) {
+                            Alert.alert('Error', error.response?.data?.message || 'Failed to submit request');
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const handleLogout = async () => {
@@ -76,7 +157,9 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
                     <Text style={styles.backButtonText}>←</Text>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Profile</Text>
-                <View style={{ width: 40 }} />
+                <TouchableOpacity onPress={() => navigation.navigate('EditProfile')} style={styles.editButton}>
+                    <Text style={styles.editButtonText}>Edit</Text>
+                </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -92,10 +175,47 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
                     <Text style={styles.sectionTitle}>Personal Information</Text>
                     <View style={styles.card}>
                         <InfoRow label="Phone" value={profile?.phone_number} />
-                        <InfoRow label="Email" value={profile?.email || 'N/A'} />
                         <InfoRow label="National ID" value={profile?.national_id || 'N/A'} />
                         <InfoRow label="Age" value={profile?.age?.toString()} />
-                        <InfoRow label="Gender" value={profile?.gender} last />
+                        <InfoRow label="Gender" value={profile?.gender} />
+
+                        {/* Email Section */}
+                        <View style={styles.emailRow}>
+                            <View>
+                                <Text style={styles.label}>Email</Text>
+                                <Text style={styles.value}>{profile?.email || 'Not Set'}</Text>
+                            </View>
+                            {profile?.email_verified ? (
+                                <View style={styles.verifiedBadge}>
+                                    <Text style={styles.verifiedText}>✓ Verified</Text>
+                                </View>
+                            ) : (
+                                <TouchableOpacity onPress={() => setShowEmailInput(!showEmailInput)}>
+                                    <Text style={styles.addEmailText}>{profile?.email ? 'Verify' : 'Add Email'}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {/* Email Input for update */}
+                        {showEmailInput && !profile?.email_verified && (
+                            <View style={styles.emailInputContainer}>
+                                <TextInput
+                                    style={styles.emailInput}
+                                    placeholder="Enter your email"
+                                    value={newEmail}
+                                    onChangeText={setNewEmail}
+                                    autoCapitalize="none"
+                                    keyboardType="email-address"
+                                />
+                                <TouchableOpacity
+                                    style={styles.updateButton}
+                                    onPress={handleUpdateEmail}
+                                    disabled={updatingEmail}
+                                >
+                                    {updatingEmail ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.updateButtonText}>Send Code</Text>}
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -183,6 +303,17 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: '#333',
+    },
+    editButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'flex-end',
+    },
+    editButtonText: {
+        fontSize: 16,
+        color: '#007AFF',
+        fontWeight: '600',
     },
     scrollContent: {
         padding: 20,
@@ -300,5 +431,55 @@ const styles = StyleSheet.create({
         color: '#007AFF',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    emailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    verifiedBadge: {
+        backgroundColor: '#E8F5E9',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+    },
+    verifiedText: {
+        color: '#4CAF50',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    addEmailText: {
+        color: '#007AFF',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    emailInputContainer: {
+        marginTop: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    emailInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: 8,
+        padding: 10,
+        marginRight: 10,
+        backgroundColor: '#F9F9F9',
+        fontSize: 14,
+    },
+    updateButton: {
+        backgroundColor: '#007AFF',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+    updateButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 14,
     },
 });

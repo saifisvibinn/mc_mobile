@@ -1,7 +1,7 @@
 export type RootStackParamList = {
     Login: undefined;
     SignUp: undefined;
-    VerifyEmail: { email: string };
+    VerifyEmail: { email: string; isPilgrim?: boolean };
     CreateGroup: undefined;
     GroupDetails: { groupId: string; groupName: string };
     PilgrimDashboard: { userId: string };
@@ -10,7 +10,7 @@ export type RootStackParamList = {
     Notifications: undefined;
     EditProfile: undefined;
     AdminDashboard: { userId: string };
-    PilgrimSignUp: { token: string };
+    PilgrimSignUp: undefined;
     PilgrimMessagesScreen: { groupId: string; groupName: string };
     JoinGroup: { userId: string };
     CommunicationScreen: { groupId: string };

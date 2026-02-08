@@ -11,21 +11,21 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 const { width } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }: Props) {
-    const [email, setEmail] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const { showToast } = useToast();
 
     const handleLogin = async () => {
-        if (!email || !password) {
-            showToast('Please enter both email and password.', 'error', { title: 'Missing Fields' });
+        if (!identifier || !password) {
+            showToast('Please enter your credentials.', 'error', { title: 'Missing Fields' });
             return;
         }
 
         setLoading(true);
         try {
-            console.log('Attempting login with:', email);
-            const response = await api.post('/auth/login', { email, password });
+            console.log('Attempting login with:', identifier);
+            const response = await api.post('/auth/login', { identifier, password });
 
             const { token, role, user_id } = response.data;
 
@@ -69,15 +69,14 @@ export default function LoginScreen({ navigation }: Props) {
 
                         <View style={styles.formContainer}>
                             <View style={styles.inputWrapper}>
-                                <Text style={styles.label}>Email</Text>
+                                <Text style={styles.label}>Email, National ID, or Phone</Text>
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="name@example.com"
+                                    placeholder="Enter email, national ID, or phone number"
                                     placeholderTextColor="#999"
-                                    value={email}
-                                    onChangeText={setEmail}
+                                    value={identifier}
+                                    onChangeText={setIdentifier}
                                     autoCapitalize="none"
-                                    keyboardType="email-address"
                                 />
                             </View>
 

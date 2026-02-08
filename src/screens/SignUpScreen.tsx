@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { api } from '../services/api';
+import { api, setAuthToken } from '../services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '../components/ToastContext';
 
@@ -10,40 +10,49 @@ type Props = NativeStackScreenProps<RootStackParamList, 'SignUp'>;
 
 export default function SignUpScreen({ navigation }: Props) {
     const [fullName, setFullName] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [nationalId, setNationalId] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [password, setPassword] = useState('');
+    const [email, setEmail] = useState('');
+    const [medicalHistory, setMedicalHistory] = useState('');
     const [loading, setLoading] = useState(false);
     const { showToast } = useToast();
 
     const handleSignUp = async () => {
-        if (!fullName || !email || !password || !phoneNumber) {
-            showToast('Please fill in all details.', 'error', { title: 'Missing Fields' });
+        if (!fullName || !nationalId || !phoneNumber || !password) {
+            showToast('Please fill in all required fields.', 'error', { title: 'Missing Fields' });
             return;
         }
 
         setLoading(true);
         try {
-            console.log('Registering user:', email);
+            console.log('Registering pilgrim:', nationalId);
             const response = await api.post('/auth/register', {
                 full_name: fullName,
-                email,
+                national_id: nationalId,
+                phone_number: phoneNumber,
                 password,
-                phone_number: phoneNumber
+                email: email.trim() || undefined,
+                medical_history: medicalHistory.trim() || undefined
             });
 
+            const { token, role, user_id } = response.data;
+
+            // Set auth token and navigate directly to dashboard
+            setAuthToken(token);
+
             showToast(
-                response.data.message || 'Please check your email for the verification code.',
+                'Account created successfully!',
                 'success',
                 {
-                    title: 'Account Created!',
-                    actionLabel: 'Verify',
-                    onAction: () => navigation.navigate('VerifyEmail', { email })
+                    title: 'Welcome to Munawwara Care',
+                    actionLabel: 'Continue',
+                    onAction: () => navigation.replace('PilgrimDashboard', { userId: user_id })
                 }
             );
 
             // Auto-navigate after showing success
-            setTimeout(() => navigation.navigate('VerifyEmail', { email }), 2000);
+            setTimeout(() => navigation.replace('PilgrimDashboard', { userId: user_id }), 2000);
         } catch (error: any) {
             console.error('Registration Error:', error);
 
@@ -76,12 +85,12 @@ export default function SignUpScreen({ navigation }: Props) {
 
                     <View style={styles.headerContainer}>
                         <Text style={styles.title}>Create Account</Text>
-                        <Text style={styles.subtitle}>Join Munawwara Care as a Moderator</Text>
+                        <Text style={styles.subtitle}>Join Munawwara Care as a Pilgrim</Text>
                     </View>
 
                     <View style={styles.formContainer}>
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Full Name</Text>
+                            <Text style={styles.label}>Full Name *</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="e.g. Abdullah Al-Fahad"
@@ -92,7 +101,43 @@ export default function SignUpScreen({ navigation }: Props) {
                         </View>
 
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Email Address</Text>
+                            <Text style={styles.label}>National ID *</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter your national ID"
+                                placeholderTextColor="#999"
+                                value={nationalId}
+                                onChangeText={setNationalId}
+                                keyboardType="numeric"
+                            />
+                        </View>
+
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Phone Number *</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="+966 50 123 4567"
+                                placeholderTextColor="#999"
+                                value={phoneNumber}
+                                onChangeText={setPhoneNumber}
+                                keyboardType="phone-pad"
+                            />
+                        </View>
+
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Password *</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Min 6 characters"
+                                placeholderTextColor="#999"
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry
+                            />
+                        </View>
+
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Email (Optional)</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="name@example.com"
@@ -105,26 +150,15 @@ export default function SignUpScreen({ navigation }: Props) {
                         </View>
 
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Phone Number</Text>
+                            <Text style={styles.label}>Medical History (Optional)</Text>
                             <TextInput
-                                style={styles.input}
-                                placeholder="+966 50 123 4567"
+                                style={[styles.input, styles.textArea]}
+                                placeholder="Any medical conditions we should know about"
                                 placeholderTextColor="#999"
-                                value={phoneNumber}
-                                onChangeText={setPhoneNumber}
-                                keyboardType="phone-pad"
-                            />
-                        </View>
-
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Password</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Min 6 characters"
-                                placeholderTextColor="#999"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
+                                value={medicalHistory}
+                                onChangeText={setMedicalHistory}
+                                multiline
+                                numberOfLines={3}
                             />
                         </View>
 
@@ -203,6 +237,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 4,
         elevation: 2,
+    },
+    textArea: {
+        minHeight: 80,
+        textAlignVertical: 'top',
+        paddingTop: 12,
     },
     button: {
         backgroundColor: '#007AFF',

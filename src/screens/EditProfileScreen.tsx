@@ -13,9 +13,13 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 export default function EditProfileScreen({ navigation }: Props) {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
+    const [age, setAge] = useState('');
+    const [gender, setGender] = useState('');
+    const [medicalHistory, setMedicalHistory] = useState('');
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
+    const [isPilgrim, setIsPilgrim] = useState(false);
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -28,6 +32,15 @@ export default function EditProfileScreen({ navigation }: Props) {
             if (response.data) {
                 setName(response.data.full_name);
                 setPhone(response.data.phone_number);
+
+                // Check if this is a pilgrim (has national_id field)
+                if (response.data.national_id) {
+                    setIsPilgrim(true);
+                    setAge(response.data.age?.toString() || '');
+                    setGender(response.data.gender || '');
+                    setMedicalHistory(response.data.medical_history || '');
+                }
+
                 if (response.data.profile_picture) {
                     setProfileImage(`${BASE_URL.replace('/api', '')}/uploads/${response.data.profile_picture}`);
                 }
@@ -65,6 +78,13 @@ export default function EditProfileScreen({ navigation }: Props) {
             formData.append('full_name', name);
             formData.append('phone_number', phone);
 
+            // Add pilgrim-specific fields if user is a pilgrim
+            if (isPilgrim) {
+                if (age) formData.append('age', age);
+                if (gender) formData.append('gender', gender);
+                if (medicalHistory !== undefined) formData.append('medical_history', medicalHistory);
+            }
+
             if (profileImage && !profileImage.startsWith('http')) {
                 // It's a new local image
                 const filename = profileImage.split('/').pop();
@@ -78,8 +98,6 @@ export default function EditProfileScreen({ navigation }: Props) {
                 } as any);
             }
 
-            // We need to specifically handle multipart/form-data with our api instance
-            // Or usually axios handles it if data is FormData
             await api.put('/auth/update-profile', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -152,6 +170,51 @@ export default function EditProfileScreen({ navigation }: Props) {
                         placeholder="Your phone number"
                         keyboardType="phone-pad"
                     />
+
+                    {isPilgrim && (
+                        <>
+                            <Text style={styles.label}>Age (Optional)</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={age}
+                                onChangeText={setAge}
+                                placeholder="Your age"
+                                keyboardType="numeric"
+                            />
+
+                            <Text style={styles.label}>Gender (Optional)</Text>
+                            <View style={styles.genderContainer}>
+                                <TouchableOpacity
+                                    style={[styles.genderButton, gender === 'male' && styles.genderButtonActive]}
+                                    onPress={() => setGender('male')}
+                                >
+                                    <Text style={[styles.genderButtonText, gender === 'male' && styles.genderButtonTextActive]}>Male</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.genderButton, gender === 'female' && styles.genderButtonActive]}
+                                    onPress={() => setGender('female')}
+                                >
+                                    <Text style={[styles.genderButtonText, gender === 'female' && styles.genderButtonTextActive]}>Female</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.genderButton, gender === 'other' && styles.genderButtonActive]}
+                                    onPress={() => setGender('other')}
+                                >
+                                    <Text style={[styles.genderButtonText, gender === 'other' && styles.genderButtonTextActive]}>Other</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.label}>Medical History (Optional)</Text>
+                            <TextInput
+                                style={[styles.input, styles.textArea]}
+                                value={medicalHistory}
+                                onChangeText={setMedicalHistory}
+                                placeholder="Any medical conditions we should know about"
+                                multiline
+                                numberOfLines={4}
+                            />
+                        </>
+                    )}
                 </View>
             </ScrollView>
         </View>
@@ -278,5 +341,37 @@ const styles = StyleSheet.create({
         color: '#333',
         borderWidth: 1,
         borderColor: '#eee',
+    },
+    genderContainer: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 10,
+    },
+    genderButton: {
+        flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        backgroundColor: '#f9f9f9',
+        borderWidth: 1,
+        borderColor: '#eee',
+        alignItems: 'center',
+    },
+    genderButtonActive: {
+        backgroundColor: '#007AFF',
+        borderColor: '#007AFF',
+    },
+    genderButtonText: {
+        fontSize: 14,
+        color: '#666',
+        fontWeight: '600',
+    },
+    genderButtonTextActive: {
+        color: 'white',
+    },
+    textArea: {
+        minHeight: 100,
+        textAlignVertical: 'top',
+        paddingTop: 12,
     },
 });

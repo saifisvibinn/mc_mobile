@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, SafeAreaView } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, SafeAreaView, ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { api, setAuthToken } from '../services/api';
@@ -9,22 +9,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../components/ToastContext';
 
 type PilgrimSignUpScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PilgrimSignUp'>;
-type PilgrimSignUpScreenRouteProp = RouteProp<RootStackParamList, 'PilgrimSignUp'>;
 
 export default function PilgrimSignUpScreen() {
     const navigation = useNavigation<PilgrimSignUpScreenNavigationProp>();
-    const route = useRoute<PilgrimSignUpScreenRouteProp>();
-    const { token } = route.params;
     const { showToast } = useToast();
 
     const [fullName, setFullName] = useState('');
+    const [nationalId, setNationalId] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showPassword, setShowPassword] = useState(false); // Toggle for password visibility
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleRegister = async () => {
-        if (!fullName || !password || !confirmPassword) {
+        if (!fullName || !nationalId || !phoneNumber || !password || !confirmPassword) {
             showToast('Please fill in all fields', 'error');
             return;
         }
@@ -41,10 +40,11 @@ export default function PilgrimSignUpScreen() {
 
         setLoading(true);
         try {
-            const response = await api.post('/auth/register-invited-pilgrim', {
+            const response = await api.post('/auth/register-public-pilgrim', {
                 full_name: fullName,
-                password,
-                token
+                national_id: nationalId,
+                phone_number: phoneNumber,
+                password
             });
 
             const { token: jwtToken, role, full_name, user_id } = response.data;
@@ -76,11 +76,11 @@ export default function PilgrimSignUpScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.content}>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>
                     <Ionicons name="people-circle-outline" size={80} color="#2563eb" />
                     <Text style={styles.title}>Pilgrim Registration</Text>
-                    <Text style={styles.subtitle}>Complete your account setup</Text>
+                    <Text style={styles.subtitle}>Sign up with your National ID</Text>
                 </View>
 
                 <View style={styles.form}>
@@ -92,6 +92,28 @@ export default function PilgrimSignUpScreen() {
                             value={fullName}
                             onChangeText={setFullName}
                             autoCapitalize="words"
+                        />
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                        <Ionicons name="card-outline" size={20} color="#666" style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="National ID / Passport Number"
+                            value={nationalId}
+                            onChangeText={setNationalId}
+                            autoCapitalize="none"
+                        />
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                        <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Mobile Number"
+                            value={phoneNumber}
+                            onChangeText={setPhoneNumber}
+                            keyboardType="phone-pad"
                         />
                     </View>
 
@@ -128,11 +150,15 @@ export default function PilgrimSignUpScreen() {
                         {loading ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
-                            <Text style={styles.buttonText}>Complete Registration</Text>
+                            <Text style={styles.buttonText}>Register</Text>
                         )}
                     </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => navigation.navigate('Login')} style={{ alignItems: 'center', marginTop: 20 }}>
+                        <Text style={{ color: '#666' }}>Already have an account? <Text style={{ color: '#2563eb', fontWeight: 'bold' }}>Login</Text></Text>
+                    </TouchableOpacity>
                 </View>
-            </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }
@@ -142,14 +168,15 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f5f7fa',
     },
-    content: {
-        flex: 1,
+    scrollContent: {
+        flexGrow: 1,
         justifyContent: 'center',
         padding: 24,
     },
     header: {
         alignItems: 'center',
-        marginBottom: 40,
+        marginBottom: 30,
+        marginTop: 20
     },
     title: {
         fontSize: 28,

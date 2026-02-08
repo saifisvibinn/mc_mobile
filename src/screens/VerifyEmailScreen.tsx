@@ -9,7 +9,7 @@ import { useToast } from '../components/ToastContext';
 type Props = NativeStackScreenProps<RootStackParamList, 'VerifyEmail'>;
 
 export default function VerifyEmailScreen({ route, navigation }: Props) {
-    const { email } = route.params;
+    const { email, isPilgrim } = route.params as { email: string, isPilgrim?: boolean };
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
@@ -25,19 +25,23 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
 
         setLoading(true);
         try {
-            await api.post('/auth/verify-email', { email, code });
+            await api.post('/auth/verify-email', { code });
 
             showToast(
-                'Your email has been verified. You can now sign in.',
+                'Your email has been verified.',
                 'success',
                 {
                     title: 'Verified!',
-                    actionLabel: 'Login',
-                    onAction: () => navigation.replace('Login')
+                    actionLabel: isPilgrim ? 'Done' : 'Login',
+                    onAction: () => isPilgrim ? navigation.goBack() : navigation.replace('Login')
                 }
             );
 
-            setTimeout(() => navigation.replace('Login'), 2000);
+            if (isPilgrim) {
+                setTimeout(() => navigation.goBack(), 1500);
+            } else {
+                setTimeout(() => navigation.replace('Login'), 2000);
+            }
         } catch (error: any) {
             console.error('Verification Error:', error);
             showToast(error.response?.data?.message || 'Invalid code', 'error', { title: 'Verification Failed' });
@@ -51,7 +55,11 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
 
         setResending(true);
         try {
-            await api.post('/auth/resend-verification', { email });
+            if (isPilgrim) {
+                await api.post('/auth/send-email-verification');
+            } else {
+                await api.post('/auth/resend-verification', { email });
+            }
             showToast('A new verification code has been sent to your email.', 'success', { title: 'Code Sent!' });
 
             // Start 60 second cooldown
