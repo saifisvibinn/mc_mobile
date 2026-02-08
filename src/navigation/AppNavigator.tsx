@@ -12,7 +12,6 @@ import SignUpScreen from '../screens/SignUpScreen';
 import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
 import GroupDetailsScreen from '../screens/GroupDetailsScreen';
-import AdminDashboard from '../screens/AdminDashboard';
 import { ToastProvider } from '../components/ToastContext';
 
 import * as Linking from 'expo-linking';
@@ -48,7 +47,6 @@ export default function AppNavigator() {
                     <Stack.Screen name="PilgrimProfile" component={PilgrimProfileScreen} />
                     <Stack.Screen name="Notifications" component={NotificationsScreen} />
                     <Stack.Screen name="ModeratorDashboard" component={ModeratorDashboard} />
-                    <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
                     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
                     <Stack.Screen name="PilgrimSignUp" component={PilgrimSignUpScreen} />
                     <Stack.Screen name="PilgrimMessagesScreen" component={PilgrimMessagesScreen} />

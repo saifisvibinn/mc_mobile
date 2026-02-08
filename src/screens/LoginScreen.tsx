@@ -32,10 +32,8 @@ export default function LoginScreen({ navigation }: Props) {
             console.log('Login successful:', role);
             setAuthToken(token);
 
-            // Navigate directly - no need for success toast
-            if (role === 'admin') {
-                navigation.replace('AdminDashboard', { userId: user_id });
-            } else if (role === 'moderator') {
+            // Navigate based on role
+            if (role === 'moderator') {
                 navigation.replace('ModeratorDashboard', { userId: user_id });
             } else {
                 navigation.replace('PilgrimDashboard', { userId: user_id });
