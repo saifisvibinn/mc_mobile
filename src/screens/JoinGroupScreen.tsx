@@ -75,21 +75,22 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
                     <Text style={styles.scannerTitle}>Scan QR Code</Text>
                     <View style={{ width: 24 }} />
                 </View>
-                <CameraView
-                    style={styles.camera}
-                    facing="back"
-                    onBarcodeScanned={handleBarCodeScanned}
-                    barcodeScannerSettings={{
-                        barcodeTypes: ['qr'],
-                    }}
-                >
+                <View style={styles.cameraContainer}>
+                    <CameraView
+                        style={styles.camera}
+                        facing="back"
+                        onBarcodeScanned={handleBarCodeScanned}
+                        barcodeScannerSettings={{
+                            barcodeTypes: ['qr'],
+                        }}
+                    />
                     <View style={styles.scannerOverlay}>
                         <View style={styles.scannerFrame} />
                         <Text style={styles.scannerInstructions}>
                             Position the QR code within the frame
                         </Text>
                     </View>
-                </CameraView>
+                </View>
             </SafeAreaView>
         );
     }
@@ -275,6 +276,10 @@ const styles = StyleSheet.create({
     camera: {
         flex: 1,
     },
+    cameraContainer: {
+        flex: 1,
+        position: 'relative',
+    },
     scannerHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -288,7 +293,11 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     scannerOverlay: {
-        flex: 1,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
