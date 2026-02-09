@@ -6,6 +6,8 @@ import { RootStackParamList } from '../navigation/types';
 import { api } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../components/ToastContext';
+import { useTranslation } from 'react-i18next';
+
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CommunicationScreen'>;
 
@@ -21,6 +23,8 @@ interface Session {
 }
 
 export default function CommunicationScreen({ navigation, route }: Props) {
+    const { t, i18n } = useTranslation();
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
     const { groupId } = route.params;
     const [sessions, setSessions] = useState<Session[]>([]);
     const [loading, setLoading] = useState(true);
@@ -44,45 +48,45 @@ export default function CommunicationScreen({ navigation, route }: Props) {
     const handleJoinSession = async (sessionId: string) => {
         try {
             await api.post('/communication/join-session', { session_id: sessionId });
-            showToast('Joined session (Simulation)', 'success');
+            showToast(t('joined_session_sim'), 'success');
             // In a real app, this would navigate to a WebRTC screen or activate audio
         } catch (error: any) {
-            showToast('Failed to join session', 'error');
+            showToast(t('failed_join_session'), 'error');
         }
     };
 
     const renderItem = ({ item }: { item: Session }) => (
-        <View style={styles.card}>
-            <View style={styles.iconContainer}>
+        <View style={[styles.card, isRTL && { flexDirection: 'row-reverse' }]}>
+            <View style={[styles.iconContainer, isRTL && { marginRight: 0, marginLeft: 16 }]}>
                 <Ionicons
                     name={item.type === 'walkie_talkie' ? 'radio' : 'call'}
                     size={24}
                     color="#2563eb"
                 />
             </View>
-            <View style={styles.info}>
+            <View style={[styles.info, isRTL && { alignItems: 'flex-end' }]}>
                 <Text style={styles.type}>
-                    {item.type === 'walkie_talkie' ? 'Walkie Talkie' : 'Voice Call'}
+                    {item.type === 'walkie_talkie' ? t('walkie_talkie') : t('voice_call')}
                 </Text>
-                <Text style={styles.initiator}>Started by: {item.initiator_id.full_name}</Text>
+                <Text style={styles.initiator}>{t('started_by', { name: item.initiator_id.full_name })}</Text>
                 <Text style={styles.time}>{new Date(item.started_at).toLocaleTimeString()}</Text>
             </View>
             <TouchableOpacity
                 style={styles.joinButton}
                 onPress={() => handleJoinSession(item._id)}
             >
-                <Text style={styles.joinText}>Join</Text>
+                <Text style={styles.joinText}>{t('join')}</Text>
             </TouchableOpacity>
         </View>
     );
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#1e293b" />
+            <View style={[styles.header, isRTL && { flexDirection: 'row-reverse' }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, isRTL && { marginRight: 0, marginLeft: 16 }]}>
+                    <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color="#1e293b" />
                 </TouchableOpacity>
-                <Text style={styles.title}>Active Sessions</Text>
+                <Text style={styles.title}>{t('active_sessions')}</Text>
             </View>
 
             <FlatList
@@ -96,7 +100,7 @@ export default function CommunicationScreen({ navigation, route }: Props) {
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         <Ionicons name="headset-outline" size={48} color="#cbd5e1" />
-                        <Text style={styles.emptyText}>No active communication sessions</Text>
+                        <Text style={styles.emptyText}>{t('no_active_sessions')}</Text>
                     </View>
                 }
             />

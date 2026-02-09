@@ -16,10 +16,12 @@ import { RootStackParamList } from '../navigation/types';
 import { api } from '../services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '../components/ToastContext';
+import { useTranslation } from 'react-i18next';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VerifyEmail'>;
 
 export default function VerifyEmailScreen({ route, navigation }: Props) {
+    const { t, i18n } = useTranslation();
     const { email, isPilgrim, postVerifyAction } = route.params as {
         email: string;
         isPilgrim?: boolean;
@@ -34,7 +36,7 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
 
     const handleVerify = async () => {
         if (!code || code.length !== 6) {
-            showToast('Please enter the full 6-digit code sent to your email.', 'error', { title: 'Invalid Code' });
+            showToast(t('enter_code_error'), 'error', { title: t('invalid_code') });
             return;
         }
 
@@ -45,20 +47,20 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
             if (isPilgrim && postVerifyAction === 'request-moderator') {
                 try {
                     await api.post('/auth/request-moderator');
-                    showToast('Moderator request submitted for review.', 'success', { title: 'Request Sent' });
+                    showToast(t('moderator_request_submitted'), 'success', { title: t('request_sent') });
                 } catch (error: any) {
-                    const message = error.response?.data?.message || 'Failed to submit moderator request';
+                    const message = error.response?.data?.message || t('failed_submit_request'); // key might be missing, using fallback or existing logic
                     if (message.toLowerCase().includes('pending')) return;
-                    showToast(message, 'error', { title: 'Request Failed' });
+                    showToast(message, 'error', { title: t('request_failed') });
                 }
             }
 
             showToast(
-                'Your email has been verified.',
+                t('email_verified_success'),
                 'success',
                 {
-                    title: 'Verified!',
-                    actionLabel: isPilgrim ? 'Done' : 'Login',
+                    title: t('verified_exclamation'),
+                    actionLabel: isPilgrim ? t('done') : t('login'),
                     onAction: () => isPilgrim ? navigation.goBack() : navigation.replace('Login')
                 }
             );
@@ -70,7 +72,7 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
             }
         } catch (error: any) {
             console.error('Verification Error:', error);
-            showToast(error.response?.data?.message || 'Invalid code', 'error', { title: 'Verification Failed' });
+            showToast(error.response?.data?.message || t('invalid_code'), 'error', { title: t('verification_failed') });
         } finally {
             setLoading(false);
         }
@@ -86,7 +88,7 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
             } else {
                 await api.post('/auth/resend-verification', { email });
             }
-            showToast('A new verification code has been sent to your email.', 'success', { title: 'Code Sent!' });
+            showToast(t('new_code_sent'), 'success', { title: t('code_sent_exclamation') });
 
             // Start 60 second cooldown
             setCooldown(60);
@@ -101,7 +103,7 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
             }, 1000);
         } catch (error: any) {
             console.error('Resend Error:', error);
-            showToast(error.response?.data?.message || 'Failed to resend code', 'error', { title: 'Error' });
+            showToast(error.response?.data?.message || t('failed_resend_code'), 'error', { title: t('error') });
         } finally {
             setResending(false);
         }
@@ -121,6 +123,8 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
         return boxes;
     };
 
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
+
     return (
         <SafeAreaView style={styles.container}>
             <KeyboardAvoidingView
@@ -134,9 +138,9 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
                     >
-                        <View style={styles.topBar}>
+                        <View style={[styles.topBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topButton}>
-                                <Text style={styles.topButtonText}>Back</Text>
+                                <Text style={styles.topButtonText}>{t('back')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={handleResend}
@@ -144,7 +148,7 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
                                 style={styles.topButton}
                             >
                                 <Text style={[styles.topButtonText, (resending || cooldown > 0) && styles.topButtonDisabled]}>
-                                    {resending ? "Sending..." : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend"}
+                                    {resending ? t('sending') : cooldown > 0 ? t('resend_in', { seconds: cooldown }) : t('resend')}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -158,14 +162,15 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
                                 <View style={styles.iconCircle}>
                                     <Text style={styles.iconText}>✉️</Text>
                                 </View>
-                                <Text style={styles.title}>Verify Email</Text>
+                                <Text style={styles.title}>{t('verify_email_title')}</Text>
                                 <Text style={styles.subtitle}>
-                                    We sent a code to{"\n"}
+                                    {t('sent_code_to')}{"\n"}
                                     <Text style={styles.emailHighlight}>{email}</Text>
                                 </Text>
                             </View>
 
-                            <View style={styles.codeContainer}>
+                            <View style={[styles.codeContainer, { direction: 'ltr' }]}>
+                                {/* Code input usually LTR even in RTL langs for numbers */}
                                 {renderCodeBoxes()}
                             </View>
 
@@ -188,13 +193,13 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
                                 onPress={handleVerify}
                                 disabled={code.length !== 6 || loading}
                             >
-                                <Text style={styles.buttonText}>{loading ? "Verifying..." : "Verify Code"}</Text>
+                                <Text style={styles.buttonText}>{loading ? t('verifying') : t('verify_code_button')}</Text>
                             </TouchableOpacity>
 
                             {/* Resend Button */}
                             {!isPilgrim && (
                                 <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.backButton}>
-                                    <Text style={styles.backText}>Back to Login</Text>
+                                    <Text style={styles.backText}>{t('back_to_login')}</Text>
                                 </TouchableOpacity>
                             )}
                         </TouchableOpacity>

@@ -7,6 +7,8 @@ import { api, BASE_URL } from '../services/api';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
+import { useTranslation } from 'react-i18next';
+
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ModeratorMessagesScreen'>;
 
@@ -27,6 +29,8 @@ interface Message {
 }
 
 export default function ModeratorMessagesScreen({ navigation, route }: Props) {
+    const { t, i18n } = useTranslation();
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
     const { groupId, groupName } = route.params;
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(true);
@@ -119,12 +123,12 @@ export default function ModeratorMessagesScreen({ navigation, route }: Props) {
 
     const handleDelete = async (messageId: string) => {
         Alert.alert(
-            'Delete Message',
-            'Are you sure you want to delete this message? This action cannot be undone.',
+            t('delete_message'),
+            t('delete_message_confirm'),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('cancel'), style: 'cancel' },
                 {
-                    text: 'Delete',
+                    text: t('delete'),
                     style: 'destructive',
                     onPress: async () => {
                         try {
@@ -132,7 +136,7 @@ export default function ModeratorMessagesScreen({ navigation, route }: Props) {
                             setMessages(prev => prev.filter(msg => msg._id !== messageId));
                         } catch (error) {
                             console.error('Delete error:', error);
-                            Alert.alert('Error', 'Failed to delete message');
+                            Alert.alert(t('error'), t('failed_delete_notif'));
                         }
                     }
                 }
@@ -148,10 +152,11 @@ export default function ModeratorMessagesScreen({ navigation, route }: Props) {
         return (
             <View style={[
                 styles.messageCard,
-                item.is_urgent && styles.urgentMessage
+                item.is_urgent && styles.urgentMessage,
+                isRTL && { direction: 'rtl' }
             ]}>
-                <View style={styles.headerRow}>
-                    <View style={styles.headerLeft}>
+                <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <View style={[styles.headerLeft, isRTL && { flexDirection: 'row-reverse' }]}>
                         <Ionicons
                             name={
                                 isTts ? "volume-high" :
@@ -161,12 +166,12 @@ export default function ModeratorMessagesScreen({ navigation, route }: Props) {
                             size={18}
                             color={item.is_urgent ? "#EF4444" : "#3B82F6"}
                         />
-                        <Text style={styles.typeLabel}>
-                            {isTts ? 'TTS' : isVoice ? 'Voice' : 'Text'}
+                        <Text style={[styles.typeLabel, isRTL && { marginLeft: 0, marginRight: 6 }]}>
+                            {isTts ? t('tts') : isVoice ? t('voice') : t('text')}
                         </Text>
                         {item.is_urgent && (
-                            <View style={styles.urgentBadge}>
-                                <Text style={styles.urgentText}>URGENT</Text>
+                            <View style={[styles.urgentBadge, isRTL && { marginLeft: 0, marginRight: 8 }]}>
+                                <Text style={styles.urgentText}>{t('urgent_caps')}</Text>
                             </View>
                         )}
                     </View>
@@ -179,38 +184,38 @@ export default function ModeratorMessagesScreen({ navigation, route }: Props) {
                 </View>
 
                 {item.type === 'text' && (
-                    <Text style={styles.content}>{item.content}</Text>
+                    <Text style={[styles.content, isRTL && { textAlign: 'right' }]}>{item.content}</Text>
                 )}
 
                 {isTts && (
                     <View>
-                        <Text style={styles.content}>{item.original_text}</Text>
+                        <Text style={[styles.content, isRTL && { textAlign: 'right' }]}>{item.original_text}</Text>
                         <TouchableOpacity
-                            style={[styles.playButton, (isPlaying && isSpeaking) && styles.playingButton]}
+                            style={[styles.playButton, (isPlaying && isSpeaking) && styles.playingButton, isRTL && { flexDirection: 'row-reverse', alignSelf: 'flex-end' }]}
                             onPress={() => playTts(item.original_text!, item._id)}
                         >
                             <Ionicons name={(isPlaying && isSpeaking) ? 'pause' : 'play'} size={18} color="white" />
-                            <Text style={styles.playText}>{(isPlaying && isSpeaking) ? 'Playing...' : 'Listen'}</Text>
+                            <Text style={styles.playText}>{(isPlaying && isSpeaking) ? t('playing') : t('listen')}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
                 {isVoice && (
                     <TouchableOpacity
-                        style={[styles.playButton, isPlaying && styles.playingButton]}
+                        style={[styles.playButton, isPlaying && styles.playingButton, isRTL && { flexDirection: 'row-reverse', alignSelf: 'flex-end' }]}
                         onPress={() => playVoice(item.media_url!, item._id)}
                     >
                         <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="white" />
-                        <Text style={styles.playText}>{isPlaying ? 'Playing...' : 'Play Voice'}</Text>
+                        <Text style={styles.playText}>{isPlaying ? t('playing') : t('play_voice')}</Text>
                     </TouchableOpacity>
                 )}
 
-                <View style={styles.footer}>
+                <View style={[styles.footer, isRTL && { flexDirection: 'row-reverse' }]}>
                     <Text style={styles.time}>
                         {new Date(item.created_at).toLocaleString()}
                     </Text>
                     <Text style={styles.sender}>
-                        Sent by: {item.sender_id.full_name}
+                        {t('sent_by', { name: item.sender_id.full_name })}
                     </Text>
                 </View>
             </View>
@@ -219,13 +224,13 @@ export default function ModeratorMessagesScreen({ navigation, route }: Props) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Ionicons name="arrow-back" size={24} color="#0F172A" />
+            <View style={[styles.header, isRTL && { flexDirection: 'row-reverse' }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, isRTL && { marginRight: 0, marginLeft: 16 }]}>
+                    <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <View style={styles.headerTextContainer}>
+                <View style={[styles.headerTextContainer, isRTL && { alignItems: 'flex-end' }]}>
                     <Text style={styles.title}>{groupName}</Text>
-                    <Text style={styles.subtitle}>Sent Messages</Text>
+                    <Text style={styles.subtitle}>{t('sent_messages')}</Text>
                 </View>
             </View>
 
@@ -237,7 +242,7 @@ export default function ModeratorMessagesScreen({ navigation, route }: Props) {
                     renderItem={renderItem}
                     keyExtractor={item => item._id}
                     contentContainerStyle={styles.list}
-                    ListEmptyComponent={<Text style={styles.empty}>No messages sent yet.</Text>}
+                    ListEmptyComponent={<Text style={styles.empty}>{t('no_messages_sent_yet')}</Text>}
                 />
             )}
         </SafeAreaView>

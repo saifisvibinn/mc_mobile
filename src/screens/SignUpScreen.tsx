@@ -1,52 +1,93 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Keyboard, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Keyboard, Alert, Modal, FlatList } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { api, setAuthToken } from '../services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '../components/ToastContext';
+import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import { changeLanguage } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SignUp'>;
 
+type LanguageOption = { label: string; value: string; flag: string };
+const LANGUAGES: LanguageOption[] = [
+    { label: 'English', value: 'en', flag: '🇺🇸' },
+    { label: 'Arabic', value: 'ar', flag: '🇸🇦' },
+    { label: 'Urdu', value: 'ur', flag: '🇵🇰' },
+    { label: 'French', value: 'fr', flag: '🇫🇷' },
+    { label: 'Indonesian', value: 'id', flag: '🇮🇩' },
+    { label: 'Turkish', value: 'tr', flag: '🇹🇷' },
+];
+
+const COUNTRY_CODES = [
+    { code: '+966', flag: '🇸🇦' },
+    { code: '+971', flag: '🇦🇪' },
+    { code: '+20', flag: '🇪🇬' },
+    { code: '+92', flag: '🇵🇰' },
+    { code: '+91', flag: '🇮🇳' },
+    { code: '+62', flag: '🇮🇩' },
+    { code: '+1', flag: '🇺🇸' },
+    { code: '+44', flag: '🇬🇧' },
+];
+
 export default function SignUpScreen({ navigation }: Props) {
+    const { t, i18n } = useTranslation();
     const [fullName, setFullName] = useState('');
     const [nationalId, setNationalId] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [selectedCountryCode, setSelectedCountryCode] = useState(COUNTRY_CODES[0]);
     const [password, setPassword] = useState('');
     const [email, setEmail] = useState('');
     const [medicalHistory, setMedicalHistory] = useState('');
+    // Initialize language from current i18n language
+    const currentLang = LANGUAGES.find(l => l.value === i18n.language) || LANGUAGES[0];
+    const [selectedLanguage, setSelectedLanguage] = useState(currentLang);
+
+    // Modals visibility
+    const [showLangPicker, setShowLangPicker] = useState(false);
+    const [showCountryPicker, setShowCountryPicker] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const { showToast } = useToast();
 
+    const handleLanguageChange = (lang: LanguageOption) => {
+        setSelectedLanguage(lang);
+        changeLanguage(lang.value);
+    };
+
     const handleSignUp = async () => {
         if (!fullName || !nationalId || !phoneNumber || !password) {
-            showToast('Please fill in all required fields.', 'error', { title: 'Missing Fields' });
+            showToast(t('fill_required'), 'error', { title: t('missing_fields') });
             return;
         }
 
         setLoading(true);
         try {
-            console.log('Registering pilgrim:', nationalId);
+            const fullPhoneNumber = `${selectedCountryCode.code}${phoneNumber}`;
+            console.log('Registering pilgrim:', nationalId, fullPhoneNumber);
+
             const response = await api.post('/auth/register', {
                 full_name: fullName,
                 national_id: nationalId,
-                phone_number: phoneNumber,
+                phone_number: fullPhoneNumber,
                 password,
                 email: email.trim() || undefined,
-                medical_history: medicalHistory.trim() || undefined
+                medical_history: medicalHistory.trim() || undefined,
+                language: selectedLanguage.value
             });
 
             const { token, role, user_id } = response.data;
 
-            // Set auth token and navigate directly to dashboard
             setAuthToken(token);
 
             showToast(
-                'Account created successfully!',
+                t('account_created'),
                 'success',
                 {
-                    title: 'Welcome to Munawwara Care',
-                    actionLabel: 'Continue',
+                    title: t('welcome_munawwara'),
+                    actionLabel: t('continue'),
                     onAction: () => navigation.replace('PilgrimDashboard', { userId: user_id })
                 }
             );
@@ -56,19 +97,48 @@ export default function SignUpScreen({ navigation }: Props) {
         } catch (error: any) {
             console.error('Registration Error:', error);
 
-            // Handle structured validation errors from backend
             if (error.response?.data?.errors) {
                 const errors = error.response.data.errors;
                 const firstErrorField = Object.keys(errors)[0];
                 const errorMessage = errors[firstErrorField];
-                showToast(errorMessage, 'error', { title: 'Validation Error' });
+                showToast(errorMessage, 'error', { title: t('validation_error') });
             } else {
-                showToast(error.response?.data?.message || 'Something went wrong', 'error', { title: 'Registration Failed' });
+                showToast(error.response?.data?.message || t('registration_failed'), 'error', { title: t('registration_failed') });
             }
         } finally {
             setLoading(false);
         }
     };
+
+    const renderPickerModal = (
+        visible: boolean,
+        onClose: () => void,
+        data: any[],
+        onSelect: (item: any) => void,
+        renderItem: (item: any) => React.ReactElement
+    ) => (
+        <Modal visible={visible} transparent animationType="slide">
+            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
+                <View style={styles.modalContent}>
+                    <View style={[styles.modalHeader, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]}>
+                        <Text style={styles.modalTitle}>{t('select_option')}</Text>
+                        <TouchableOpacity onPress={onClose}>
+                            <Ionicons name="close" size={24} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+                    <FlatList
+                        data={data}
+                        keyExtractor={(item, index) => index.toString()}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity style={[styles.pickerItem, (i18n.language === 'ar' || i18n.language === 'ur') && { alignItems: 'flex-end' }]} onPress={() => { onSelect(item); onClose(); }}>
+                                {renderItem(item)}
+                            </TouchableOpacity>
+                        )}
+                    />
+                </View>
+            </TouchableOpacity>
+        </Modal>
+    );
 
     return (
         <SafeAreaView style={styles.container}>
@@ -84,16 +154,25 @@ export default function SignUpScreen({ navigation }: Props) {
                 >
 
                     <View style={styles.headerContainer}>
-                        <Text style={styles.title}>Create Account</Text>
-                        <Text style={styles.subtitle}>Join Munawwara Care as a Pilgrim</Text>
+                        <Text style={styles.title}>{t('create_account')}</Text>
+                        <Text style={styles.subtitle}>{t('join_munawwara')}</Text>
                     </View>
 
                     <View style={styles.formContainer}>
+                        {/* Language Selector */}
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Full Name *</Text>
+                            <Text style={[styles.label, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right' }]}>{t('language_preference')}</Text>
+                            <TouchableOpacity style={[styles.pickerButton, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]} onPress={() => setShowLangPicker(true)}>
+                                <Text style={styles.pickerButtonText}>{selectedLanguage.flag}  {selectedLanguage.label}</Text>
+                                <Ionicons name="chevron-down" size={20} color="#666" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.inputWrapper}>
+                            <Text style={[styles.label, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right' }]}>{t('full_name')} *</Text>
                             <TextInput
-                                style={styles.input}
-                                placeholder="e.g. Abdullah Al-Fahad"
+                                style={[styles.input, { textAlign: i18n.language === 'ar' || i18n.language === 'ur' ? 'right' : 'left' }]}
+                                placeholder={t('full_name')}
                                 placeholderTextColor="#999"
                                 value={fullName}
                                 onChangeText={setFullName}
@@ -101,10 +180,10 @@ export default function SignUpScreen({ navigation }: Props) {
                         </View>
 
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>National ID *</Text>
+                            <Text style={[styles.label, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right' }]}>{t('national_id')} *</Text>
                             <TextInput
-                                style={styles.input}
-                                placeholder="Enter your national ID"
+                                style={[styles.input, { textAlign: i18n.language === 'ar' || i18n.language === 'ur' ? 'right' : 'left' }]}
+                                placeholder={t('national_id')}
                                 placeholderTextColor="#999"
                                 value={nationalId}
                                 onChangeText={setNationalId}
@@ -113,22 +192,28 @@ export default function SignUpScreen({ navigation }: Props) {
                         </View>
 
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Phone Number *</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="+966 50 123 4567"
-                                placeholderTextColor="#999"
-                                value={phoneNumber}
-                                onChangeText={setPhoneNumber}
-                                keyboardType="phone-pad"
-                            />
+                            <Text style={[styles.label, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right' }]}>{t('phone_number')} *</Text>
+                            <View style={[styles.phoneInputContainer, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]}>
+                                <TouchableOpacity style={[styles.countryCodeButton, (i18n.language === 'ar' || i18n.language === 'ur') && { marginRight: 0, marginLeft: 10, flexDirection: 'row-reverse' }]} onPress={() => setShowCountryPicker(true)}>
+                                    <Text style={styles.countryCodeText}>{selectedCountryCode.flag} {selectedCountryCode.code}</Text>
+                                    <Ionicons name="chevron-down" size={16} color="#666" />
+                                </TouchableOpacity>
+                                <TextInput
+                                    style={[styles.phoneInput, { textAlign: 'left' }]} // Phone numbers usually LTR
+                                    placeholder="50 123 4567"
+                                    placeholderTextColor="#999"
+                                    value={phoneNumber}
+                                    onChangeText={setPhoneNumber}
+                                    keyboardType="phone-pad"
+                                />
+                            </View>
                         </View>
 
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Password *</Text>
+                            <Text style={[styles.label, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right' }]}>{t('password_placeholder')} *</Text>
                             <TextInput
-                                style={styles.input}
-                                placeholder="Min 6 characters"
+                                style={[styles.input, { textAlign: i18n.language === 'ar' || i18n.language === 'ur' ? 'right' : 'left' }]}
+                                placeholder={t('password_placeholder')}
                                 placeholderTextColor="#999"
                                 value={password}
                                 onChangeText={setPassword}
@@ -137,10 +222,10 @@ export default function SignUpScreen({ navigation }: Props) {
                         </View>
 
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Email (Optional)</Text>
+                            <Text style={[styles.label, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right' }]}>{t('email_optional')}</Text>
                             <TextInput
-                                style={styles.input}
-                                placeholder="name@example.com"
+                                style={[styles.input, { textAlign: i18n.language === 'ar' || i18n.language === 'ur' ? 'right' : 'left' }]}
+                                placeholder={t('email_address_placeholder')}
                                 placeholderTextColor="#999"
                                 value={email}
                                 onChangeText={setEmail}
@@ -150,10 +235,10 @@ export default function SignUpScreen({ navigation }: Props) {
                         </View>
 
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Medical History (Optional)</Text>
+                            <Text style={[styles.label, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right' }]}>{t('medical_history')}</Text>
                             <TextInput
-                                style={[styles.input, styles.textArea]}
-                                placeholder="Any medical conditions we should know about"
+                                style={[styles.input, styles.textArea, { textAlign: i18n.language === 'ar' || i18n.language === 'ur' ? 'right' : 'left' }]}
+                                placeholder={t('medical_history')}
                                 placeholderTextColor="#999"
                                 value={medicalHistory}
                                 onChangeText={setMedicalHistory}
@@ -167,18 +252,28 @@ export default function SignUpScreen({ navigation }: Props) {
                             onPress={handleSignUp}
                             disabled={loading}
                         >
-                            <Text style={styles.buttonText}>{loading ? "Creating Account..." : "Sign Up"}</Text>
+                            <Text style={styles.buttonText}>{loading ? t('registering') : t('sign_up')}</Text>
                         </TouchableOpacity>
 
-                        <View style={styles.footer}>
-                            <Text style={styles.footerText}>Already have an account? </Text>
+                        <View style={[styles.footer, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.footerText}>{t('already_have_account')} </Text>
                             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                                <Text style={styles.linkText}>Log In</Text>
+                                <Text style={styles.linkText}>{t('login')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Language Picker Modal */}
+            {renderPickerModal(showLangPicker, () => setShowLangPicker(false), LANGUAGES, handleLanguageChange, (item) => (
+                <Text style={styles.pickerItemText}>{item.flag}  {item.label}</Text>
+            ))}
+
+            {/* Country Code Picker Modal */}
+            {renderPickerModal(showCountryPicker, () => setShowCountryPicker(false), COUNTRY_CODES, setSelectedCountryCode, (item) => (
+                <Text style={styles.pickerItemText}>{item.flag}  {item.code}</Text>
+            ))}
         </SafeAreaView>
     );
 }
@@ -192,17 +287,17 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         justifyContent: 'center',
         paddingHorizontal: 24,
-        paddingVertical: 40,
+        paddingVertical: 20,
     },
     headerContainer: {
         alignItems: 'center',
-        marginBottom: 30,
+        marginBottom: 20,
     },
     title: {
         fontSize: 28,
         fontWeight: '800',
         color: '#1A1A1A',
-        marginBottom: 10,
+        marginBottom: 5,
         textAlign: 'center',
     },
     subtitle: {
@@ -214,19 +309,19 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     inputWrapper: {
-        marginBottom: 20,
+        marginBottom: 12,
     },
     label: {
         fontSize: 14,
         fontWeight: '600',
         color: '#333',
-        marginBottom: 8,
+        marginBottom: 6,
         marginLeft: 4,
     },
     input: {
         backgroundColor: 'white',
         borderRadius: 12,
-        paddingVertical: 14,
+        paddingVertical: 12,
         paddingHorizontal: 16,
         fontSize: 16,
         color: '#333',
@@ -237,6 +332,70 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 4,
         elevation: 2,
+    },
+    phoneInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    countryCodeButton: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: '#E1E1E1',
+        marginRight: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: 100,
+        height: 48,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    countryCodeText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    phoneInput: {
+        flex: 1,
+        backgroundColor: 'white',
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        fontSize: 16,
+        color: '#333',
+        borderWidth: 1,
+        borderColor: '#E1E1E1',
+        height: 48,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    pickerButton: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderWidth: 1,
+        borderColor: '#E1E1E1',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    pickerButtonText: {
+        fontSize: 16,
+        color: '#333',
     },
     textArea: {
         minHeight: 80,
@@ -279,5 +438,37 @@ const styles = StyleSheet.create({
         color: '#007AFF',
         fontSize: 15,
         fontWeight: 'bold',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        maxHeight: '50%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    pickerItem: {
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    pickerItemText: {
+        fontSize: 18,
+        color: '#333',
     },
 });

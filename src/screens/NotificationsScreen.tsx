@@ -6,6 +6,7 @@ import { RootStackParamList } from '../navigation/types';
 import { api } from '../services/api';
 import { useToast } from '../components/ToastContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notifications'>;
 
@@ -28,6 +29,7 @@ interface Invitation {
 }
 
 export default function NotificationsScreen({ navigation }: Props) {
+    const { t, i18n } = useTranslation();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [invitations, setInvitations] = useState<Invitation[]>([]);
     const [loading, setLoading] = useState(true);
@@ -55,7 +57,7 @@ export default function NotificationsScreen({ navigation }: Props) {
             }
         } catch (error) {
             console.error('Error fetching notifications:', error);
-            showToast('Failed to load notifications', 'error');
+            showToast(t('failed_load_notifications'), 'error');
         } finally {
             setLoading(false);
         }
@@ -68,20 +70,20 @@ export default function NotificationsScreen({ navigation }: Props) {
     const handleAcceptInvite = async (invitationId: string) => {
         try {
             await api.post(`/invitations/${invitationId}/accept`);
-            showToast('Invitation accepted!', 'success');
+            showToast(t('invitation_accepted'), 'success');
             fetchData(); // Refresh data
         } catch (error: any) {
-            showToast(error.response?.data?.message || 'Failed to accept invitation', 'error');
+            showToast(error.response?.data?.message || t('failed_accept_invite'), 'error');
         }
     };
 
     const handleDeclineInvite = async (invitationId: string) => {
         try {
             await api.post(`/invitations/${invitationId}/decline`);
-            showToast('Invitation declined', 'info');
+            showToast(t('invitation_declined'), 'info');
             fetchData(); // Refresh data
         } catch (error: any) {
-            showToast(error.response?.data?.message || 'Failed to decline invitation', 'error');
+            showToast(error.response?.data?.message || t('failed_decline_invite'), 'error');
         }
     };
 
@@ -90,7 +92,7 @@ export default function NotificationsScreen({ navigation }: Props) {
             await api.delete(`/notifications/${notificationId}`);
             setNotifications(prev => prev.filter(n => n._id !== notificationId));
         } catch (error: any) {
-            showToast(error.response?.data?.message || 'Failed to delete notification', 'error');
+            showToast(error.response?.data?.message || t('failed_delete_notif'), 'error');
         }
     };
 
@@ -99,36 +101,36 @@ export default function NotificationsScreen({ navigation }: Props) {
             await api.delete('/notifications/read');
             setNotifications(prev => prev.filter(n => !n.read));
         } catch (error: any) {
-            showToast(error.response?.data?.message || 'Failed to clear notifications', 'error');
+            showToast(error.response?.data?.message || t('failed_clear_notif'), 'error');
         }
     };
 
     const renderInvitation = ({ item }: { item: Invitation }) => (
         <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[styles.cardHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
                     <Ionicons name="mail-unread-outline" size={16} color="#666" />
-                    <Text style={styles.cardType}>Group Invitation</Text>
+                    <Text style={styles.cardType}>{t('group_invitation')}</Text>
                 </View>
                 <Text style={styles.cardDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
             </View>
-            <Text style={styles.cardTitle}>Join "{item.group_id.group_name}"</Text>
-            <Text style={styles.cardMessage}>
-                Invited by <Text style={{ fontWeight: 'bold' }}>{item.inviter_id.full_name}</Text>
+            <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>{t('join')} "{item.group_id.group_name}"</Text>
+            <Text style={[styles.cardMessage, { textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('invited_by')} <Text style={{ fontWeight: 'bold' }}>{item.inviter_id.full_name}</Text>
             </Text>
 
-            <View style={styles.actionButtons}>
+            <View style={[styles.actionButtons, { flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: isRTL ? 'flex-start' : 'flex-end' }]}>
                 <TouchableOpacity
                     style={[styles.actionButton, styles.declineButton]}
                     onPress={() => handleDeclineInvite(item._id)}
                 >
-                    <Text style={styles.declineText}>Decline</Text>
+                    <Text style={styles.declineText}>{t('decline')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.actionButton, styles.acceptButton]}
                     onPress={() => handleAcceptInvite(item._id)}
                 >
-                    <Text style={styles.acceptText}>Accept</Text>
+                    <Text style={styles.acceptText}>{t('accept')}</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -172,30 +174,40 @@ export default function NotificationsScreen({ navigation }: Props) {
                     openProfile: true
                 });
             } else {
-                showToast(`Missing SOS details (group: ${!!groupId}, pilgrim: ${!!pilgrimId})`, 'error');
+                showToast(t('missing_sos_details'), 'error');
+            }
+        };
+
+        const getTypeLabel = (type: string) => {
+            switch (type) {
+                case 'moderator_removed': return t('removed');
+                case 'sos_alert': return t('sos_alert');
+                case 'moderator_request_approved': return t('request_approved');
+                case 'moderator_request_rejected': return t('request_rejected');
+                case 'invitation_accepted': return t('accepted');
+                default: return t('notification');
             }
         };
 
         return (
             <TouchableOpacity
-                style={[styles.card, !item.read && styles.unreadCard]}
+                style={[
+                    styles.card,
+                    !item.read && styles.unreadCard,
+                    (!item.read && isRTL) && { borderLeftWidth: 0, borderRightWidth: 4, borderRightColor: '#007AFF' }
+                ]}
                 onPress={handlePress}
                 activeOpacity={isSos ? 0.85 : 1}
                 disabled={!isSos}
             >
-                <View style={styles.cardHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={[styles.cardHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
                         <Ionicons name={iconName as any} size={16} color={iconColor} />
                         <Text style={styles.cardType}>
-                            {item.type === 'moderator_removed' ? 'Removed' :
-                                item.type === 'sos_alert' ? 'SOS Alert' :
-                                    item.type === 'invitation_accepted' ? 'Accepted' :
-                                        item.type === 'moderator_request_approved' ? 'Request Approved' :
-                                            item.type === 'moderator_request_rejected' ? 'Request Rejected' :
-                                                'Notification'}
+                            {getTypeLabel(item.type)}
                         </Text>
                     </View>
-                    <View style={styles.cardHeaderRight}>
+                    <View style={[styles.cardHeaderRight, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                         <Text style={styles.cardDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
                         {item.read && (
                             <TouchableOpacity
@@ -207,22 +219,24 @@ export default function NotificationsScreen({ navigation }: Props) {
                         )}
                     </View>
                 </View>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardMessage}>{item.message}</Text>
+                <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>{item.title}</Text>
+                <Text style={[styles.cardMessage, { textAlign: isRTL ? 'right' : 'left' }]}>{item.message}</Text>
             </TouchableOpacity>
         );
     };
 
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
+
     return (
         <View style={styles.container}>
             <SafeAreaView style={styles.headerSafeArea}>
-                <View style={styles.header}>
+                <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color="#007AFF" />
+                        <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color="#007AFF" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Notifications</Text>
+                    <Text style={styles.headerTitle}>{t('notifications')}</Text>
                     <TouchableOpacity onPress={handleClearRead} style={styles.clearButton}>
-                        <Text style={styles.clearButtonText}>Clear Viewed</Text>
+                        <Text style={styles.clearButtonText}>{t('clear_viewed')}</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -233,7 +247,7 @@ export default function NotificationsScreen({ navigation }: Props) {
                 <View style={styles.listContainer}>
                     {invitations.length > 0 && (
                         <View>
-                            <Text style={styles.sectionTitle}>Pending Invitations</Text>
+                            <Text style={[styles.sectionTitle, { textAlign: isRTL ? 'right' : 'left' }]}>{t('pending_invitations')}</Text>
                             <FlatList
                                 data={invitations}
                                 renderItem={renderInvitation}
@@ -243,12 +257,12 @@ export default function NotificationsScreen({ navigation }: Props) {
                         </View>
                     )}
 
-                    <Text style={styles.sectionTitle}>Recent Notifications</Text>
+                    <Text style={[styles.sectionTitle, { textAlign: isRTL ? 'right' : 'left' }]}>{t('recent_notifications')}</Text>
                     <FlatList
                         data={notifications}
                         renderItem={renderNotification}
                         keyExtractor={item => item._id}
-                        ListEmptyComponent={<Text style={styles.emptyText}>No new notifications</Text>}
+                        ListEmptyComponent={<Text style={styles.emptyText}>{t('no_new_notifications')}</Text>}
                         contentContainerStyle={{ paddingBottom: 20 }}
                     />
                 </View>

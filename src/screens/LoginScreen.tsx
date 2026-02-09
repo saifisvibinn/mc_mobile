@@ -5,12 +5,14 @@ import { RootStackParamList } from '../navigation/types';
 import { api, setAuthToken } from '../services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '../components/ToastContext';
+import { useTranslation } from 'react-i18next';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 const { width } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }: Props) {
+    const { t, i18n } = useTranslation();
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -18,7 +20,7 @@ export default function LoginScreen({ navigation }: Props) {
 
     const handleLogin = async () => {
         if (!identifier || !password) {
-            showToast('Please enter your credentials.', 'error', { title: 'Missing Fields' });
+            showToast(t('fill_required'), 'error', { title: t('missing_fields') });
             return;
         }
 
@@ -40,7 +42,7 @@ export default function LoginScreen({ navigation }: Props) {
             }
         } catch (error: any) {
             console.error('Login Error:', error);
-            showToast(error.response?.data?.message || 'Invalid credentials', 'error', { title: 'Login Failed' });
+            showToast(error.response?.data?.message || t('invalid_credentials'), 'error', { title: t('login_failed') });
         } finally {
             setLoading(false);
         }
@@ -61,16 +63,16 @@ export default function LoginScreen({ navigation }: Props) {
                                 resizeMode="contain"
                             />
                             <Text style={styles.appName}>Munawwara Care</Text>
-                            <Text style={styles.welcomeText}>Welcome Back</Text>
-                            <Text style={styles.subText}>Sign in to continue tracking your group</Text>
+                            <Text style={styles.welcomeText}>{t('welcome')}</Text>
+                            <Text style={styles.subText}>{t('sign_in_subtitle')}</Text>
                         </View>
 
                         <View style={styles.formContainer}>
                             <View style={styles.inputWrapper}>
-                                <Text style={styles.label}>Email, National ID, or Phone</Text>
+                                <Text style={styles.label}>{t('email_placeholder')}</Text>
                                 <TextInput
-                                    style={styles.input}
-                                    placeholder="Enter email, national ID, or phone number"
+                                    style={[styles.input, { textAlign: i18n.language === 'ar' || i18n.language === 'ur' ? 'right' : 'left' }]}
+                                    placeholder={t('email_placeholder')}
                                     placeholderTextColor="#999"
                                     value={identifier}
                                     onChangeText={setIdentifier}
@@ -79,9 +81,9 @@ export default function LoginScreen({ navigation }: Props) {
                             </View>
 
                             <View style={styles.inputWrapper}>
-                                <Text style={styles.label}>Password</Text>
+                                <Text style={styles.label}>{t('password_placeholder')}</Text>
                                 <TextInput
-                                    style={styles.input}
+                                    style={[styles.input, { textAlign: i18n.language === 'ar' || i18n.language === 'ur' ? 'right' : 'left' }]}
                                     placeholder="••••••••"
                                     placeholderTextColor="#999"
                                     value={password}
@@ -95,27 +97,27 @@ export default function LoginScreen({ navigation }: Props) {
                                 onPress={handleLogin}
                                 disabled={loading}
                             >
-                                <Text style={styles.loginButtonText}>{loading ? 'Signing In...' : 'Sign In'}</Text>
+                                <Text style={styles.loginButtonText}>{loading ? t('signing_in') : t('sign_in')}</Text>
                             </TouchableOpacity>
 
                             <View style={styles.divider}>
                                 <View style={styles.line} />
-                                <Text style={styles.dividerText}>or continue with</Text>
+                                <Text style={styles.dividerText}>{t('or_continue_with')}</Text>
                                 <View style={styles.line} />
                             </View>
 
                             <TouchableOpacity
-                                style={styles.googleButton}
-                                onPress={() => showToast('Google Sign-In requires Client IDs setup.', 'info', { title: 'Coming Soon' })}
+                                style={[styles.googleButton, i18n.language === 'ar' || i18n.language === 'ur' ? { flexDirection: 'row-reverse' } : null]}
+                                onPress={() => showToast(t('google_signin_coming_soon'), 'info', { title: t('coming_soon') })}
                             >
-                                <Text style={styles.googleButtonText}>G</Text>
-                                <Text style={styles.googleText}>Sign in with Google</Text>
+                                <Text style={[styles.googleButtonText, i18n.language === 'ar' || i18n.language === 'ur' ? { marginRight: 0, marginLeft: 10 } : null]}>G</Text>
+                                <Text style={styles.googleText}>{t('sign_in_google')}</Text>
                             </TouchableOpacity>
 
                             <View style={styles.footer}>
-                                <Text style={styles.footerText}>Don't have an account? </Text>
+                                <Text style={styles.footerText}>{t('dont_have_account')} </Text>
                                 <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                                    <Text style={styles.signUpText}>Sign Up</Text>
+                                    <Text style={styles.signUpText}>{t('sign_up')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -140,6 +142,7 @@ const styles = StyleSheet.create({
     headerContainer: {
         alignItems: 'center',
         marginBottom: 40,
+        marginTop: 60,
     },
     logo: {
         width: 100,

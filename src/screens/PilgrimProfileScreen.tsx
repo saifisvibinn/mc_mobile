@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput, Animated, Modal, FlatList } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { api, clearAuthToken } from '../services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '../components/ToastContext';
+import { useTranslation } from 'react-i18next';
+import { changeLanguage } from '../i18n';
+import { Ionicons } from '@expo/vector-icons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PilgrimProfile'>;
 
@@ -22,17 +25,33 @@ interface PilgrimProfile {
     age?: number;
     gender?: string;
     role?: string;
+    language?: string;
 }
 
+type LanguageOption = { label: string; value: string; flag: string };
+const LANGUAGES: LanguageOption[] = [
+    { label: 'English', value: 'en', flag: '🇺🇸' },
+    { label: 'Arabic', value: 'ar', flag: '🇸🇦' },
+    { label: 'Urdu', value: 'ur', flag: '🇵🇰' },
+    { label: 'French', value: 'fr', flag: '🇫🇷' },
+    { label: 'Indonesian', value: 'id', flag: '🇮🇩' },
+    { label: 'Turkish', value: 'tr', flag: '🇹🇷' },
+];
+
 export default function PilgrimProfileScreen({ navigation, route }: Props) {
+    const { t, i18n } = useTranslation();
     const [profile, setProfile] = useState<PilgrimProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [showEmailInput, setShowEmailInput] = useState(false);
     const [newEmail, setNewEmail] = useState('');
     const [updatingEmail, setUpdatingEmail] = useState(false);
+    const [showLangPicker, setShowLangPicker] = useState(false);
     const { showToast } = useToast();
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const isFocused = useIsFocused();
+
+    const currentLang = LANGUAGES.find(l => l.value === i18n.language) || LANGUAGES[0];
+    const [selectedLanguage, setSelectedLanguage] = useState(currentLang);
 
     useEffect(() => {
         fetchProfile();
@@ -46,13 +65,16 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
         }).start();
     }, [fadeAnim]);
 
-    // Refresh profile when screen comes into focus (e.g., after verification)
+    // Refresh profile when screen comes into focus
     useEffect(() => {
         const unsubscribe = navigation.addListener('focus', () => {
             fetchProfile();
+            // Sync local selected language with i18n
+            const lang = LANGUAGES.find(l => l.value === i18n.language);
+            if (lang) setSelectedLanguage(lang);
         });
         return unsubscribe;
-    }, [navigation]);
+    }, [navigation, i18n.language]);
 
     const fetchProfile = async (options?: { silent?: boolean }) => {
         try {
@@ -62,9 +84,12 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
             if (response.data.email) {
                 setNewEmail(response.data.email);
             }
+            // If backend has a different language, we could sync it, but usually user preference on device overrides or we sync on change.
+            // For now, we trust the device's current i18n setting or update it if we want backend to be master.
+            // Let's keep device setting as master for now.
         } catch (error) {
             console.error('Fetch profile error:', error);
-            if (!options?.silent) showToast('Failed to load profile', 'error');
+            if (!options?.silent) showToast(t('failed_load_profile'), 'error');
         } finally {
             if (!options?.silent) setLoading(false);
         }
@@ -80,26 +105,38 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
     const isPending = profile?.pending_moderator_request || profile?.moderator_request_status === 'pending';
     const isRejected = profile?.moderator_request_status === 'rejected';
 
+    const handleLanguageChange = async (lang: LanguageOption) => {
+        setSelectedLanguage(lang);
+        await changeLanguage(lang.value);
+        setShowLangPicker(false);
+        // Optionally update backend
+        try {
+            await api.put('/auth/update-language', { language: lang.value });
+        } catch (e) {
+            console.log('Failed to update language on backend', e);
+        }
+    };
+
     const handleUpdateEmail = async () => {
         if (!newEmail || !newEmail.includes('@')) {
-            showToast('Please enter a valid email', 'error');
+            showToast(t('valid_email_required'), 'error');
             return;
         }
 
         setUpdatingEmail(true);
         try {
             await api.post('/auth/add-email', { email: newEmail });
-            showToast('Email added. Sending verification code...', 'success');
+            showToast(t('email_added_verifying'), 'success');
 
             // Now send verification code
             await api.post('/auth/send-email-verification');
-            showToast('Verification code sent to your email', 'success');
+            showToast(t('verification_code_sent'), 'success');
             setShowEmailInput(false);
 
             // Navigate to verify
             navigation.navigate('VerifyEmail', { email: newEmail, isPilgrim: true });
         } catch (error: any) {
-            showToast(error.response?.data?.message || 'Failed to update email', 'error');
+            showToast(error.response?.data?.message || t('failed_update_email'), 'error');
         } finally {
             setUpdatingEmail(false);
         }
@@ -108,16 +145,16 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
     const handleRequestModerator = async () => {
         if (!profile?.email_verified) {
             Alert.alert(
-                'Email Verification Required',
-                'You must verify your email address before requesting to become a moderator.',
+                t('email_verification_required'),
+                t('email_verification_msg'),
                 [
-                    { text: 'Cancel', style: 'cancel' },
+                    { text: t('cancel'), style: 'cancel' },
                     {
-                        text: 'Verify Now', onPress: () => {
+                        text: t('verify_now'), onPress: () => {
                             if (profile?.email) {
                                 api.post('/auth/send-email-verification')
                                     .then(() => {
-                                        showToast('Verification code sent to your email', 'success', { title: 'Code Sent' });
+                                        showToast(t('verification_code_sent'), 'success', { title: t('code_sent') });
                                         navigation.navigate('VerifyEmail', {
                                             email: profile.email,
                                             isPilgrim: true,
@@ -125,10 +162,10 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
                                         });
                                     })
                                     .catch((error: any) => {
-                                        showToast(error.response?.data?.message || 'Failed to send verification code', 'error');
+                                        showToast(error.response?.data?.message || t('failed_send_code'), 'error');
                                     });
                             } else {
-                                showToast('Please add your email to continue.', 'info', { title: 'Email Needed' });
+                                showToast(t('add_email_to_continue'), 'info', { title: t('email_needed') });
                                 setShowEmailInput(true);
                             }
                         }
@@ -143,19 +180,19 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
         }
 
         Alert.alert(
-            'Request Moderator Access',
-            'Do you want to request to become a moderator? An admin will review your request.',
+            t('request_moderator_access'),
+            t('request_moderator_msg'),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('cancel'), style: 'cancel' },
                 {
-                    text: 'Request',
+                    text: t('request'),
                     onPress: async () => {
                         try {
                             await api.post('/auth/request-moderator');
-                            showToast('Your request has been submitted for review.', 'success', { title: 'Request Sent' });
+                            showToast(t('request_submitted'), 'success', { title: t('request_sent') });
                             setProfile(prev => prev ? { ...prev, pending_moderator_request: true, moderator_request_status: 'pending' } : prev);
                         } catch (error: any) {
-                            const message = error.response?.data?.message || 'Failed to submit request';
+                            const message = error.response?.data?.message || t('failed_submit_request');
                             if (message.toLowerCase().includes('pending')) return;
                             showToast(message, 'error');
                         }
@@ -167,12 +204,12 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
 
     const handleLogout = async () => {
         Alert.alert(
-            'Logout',
-            'Are you sure you want to logout?',
+            t('logout'),
+            t('logout_confirmation'),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('cancel'), style: 'cancel' },
                 {
-                    text: 'Logout',
+                    text: t('logout'),
                     style: 'destructive',
                     onPress: async () => {
                         await clearAuthToken();
@@ -186,6 +223,33 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
         );
     };
 
+    const renderPickerModal = () => (
+        <Modal visible={showLangPicker} transparent animationType="slide">
+            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowLangPicker(false)}>
+                <View style={styles.modalContent}>
+                    <View style={[styles.modalHeader, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]}>
+                        <Text style={styles.modalTitle}>{t('select_option')}</Text>
+                        <TouchableOpacity onPress={() => setShowLangPicker(false)}>
+                            <Ionicons name="close" size={24} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+                    <FlatList
+                        data={LANGUAGES}
+                        keyExtractor={(item) => item.value}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity style={[styles.pickerItem, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]} onPress={() => handleLanguageChange(item)}>
+                                <Text style={styles.pickerItemText}>{item.flag}  {item.label}</Text>
+                                {selectedLanguage.value === item.value && (
+                                    <Ionicons name="checkmark" size={20} color="#007AFF" />
+                                )}
+                            </TouchableOpacity>
+                        )}
+                    />
+                </View>
+            </TouchableOpacity>
+        </Modal>
+    );
+
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
@@ -198,13 +262,13 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.backgroundOrbOne} />
             <View style={styles.backgroundOrbTwo} />
-            <View style={styles.header}>
+            <View style={[styles.header, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Text style={styles.backButtonText}>←</Text>
+                    <Ionicons name={i18n.language === 'ar' || i18n.language === 'ur' ? "arrow-forward" : "arrow-back"} size={28} color="#1F2A44" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>My Profile</Text>
+                <Text style={styles.headerTitle}>{t('profile')}</Text>
                 <TouchableOpacity onPress={() => navigation.navigate('EditProfile')} style={styles.editButton}>
-                    <Text style={styles.editButtonText}>Edit</Text>
+                    <Text style={styles.editButtonText}>{t('edit')}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -215,40 +279,40 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
                             <Text style={styles.avatarText}>{profile?.full_name?.charAt(0) || 'P'}</Text>
                         </View>
                         <Text style={styles.name}>{profile?.full_name}</Text>
-                        <Text style={styles.role}>Pilgrim</Text>
+                        <Text style={styles.role}>{t('pilgrim')}</Text>
                     </View>
 
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Personal Information</Text>
+                        <Text style={[styles.sectionTitle, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right', marginLeft: 0, marginRight: 6 }]}>{t('personal_information')}</Text>
                         <View style={styles.card}>
-                            <InfoRow label="Phone" value={profile?.phone_number} />
-                            <InfoRow label="National ID" value={profile?.national_id || 'N/A'} />
-                            <InfoRow label="Age" value={profile?.age?.toString()} />
-                            <InfoRow label="Gender" value={profile?.gender} />
+                            <InfoRow label={t('phone_number')} value={profile?.phone_number} isRTL={i18n.language === 'ar' || i18n.language === 'ur'} />
+                            <InfoRow label={t('national_id')} value={profile?.national_id || t('not_available_short')} isRTL={i18n.language === 'ar' || i18n.language === 'ur'} />
+                            <InfoRow label={t('age')} value={profile?.age?.toString()} isRTL={i18n.language === 'ar' || i18n.language === 'ur'} />
+                            <InfoRow label={t('gender')} value={profile?.gender ? t(profile.gender.toLowerCase()) : undefined} isRTL={i18n.language === 'ar' || i18n.language === 'ur'} />
 
                             {/* Email Section */}
-                            <View style={styles.emailRow}>
-                                <View style={styles.emailTextWrap}>
-                                    <Text style={styles.label}>Email</Text>
-                                    <Text style={styles.value}>{profile?.email || 'Not Set'}</Text>
+                            <View style={[styles.emailRow, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]}>
+                                <View style={[styles.emailTextWrap, (i18n.language === 'ar' || i18n.language === 'ur') && { marginRight: 0, marginLeft: 10, alignItems: 'flex-end' }]}>
+                                    <Text style={styles.label}>{t('email')}</Text>
+                                    <Text style={styles.value}>{profile?.email || t('not_set')}</Text>
                                 </View>
                                 {profile?.email_verified ? (
                                     <View style={styles.verifiedBadge}>
-                                        <Text style={styles.verifiedText}>Verified</Text>
+                                        <Text style={styles.verifiedText}>{t('verified')}</Text>
                                     </View>
                                 ) : (
                                     <TouchableOpacity onPress={() => setShowEmailInput(!showEmailInput)}>
-                                        <Text style={styles.addEmailText}>{profile?.email ? 'Verify' : 'Add Email'}</Text>
+                                        <Text style={styles.addEmailText}>{profile?.email ? t('verify') : t('add_email')}</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
 
                             {/* Email Input for update */}
                             {showEmailInput && !profile?.email_verified && (
-                                <View style={styles.emailInputContainer}>
+                                <View style={[styles.emailInputContainer, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]}>
                                     <TextInput
-                                        style={styles.emailInput}
-                                        placeholder="Enter your email"
+                                        style={[styles.emailInput, (i18n.language === 'ar' || i18n.language === 'ur') && { marginRight: 0, marginLeft: 10, textAlign: 'right' }]}
+                                        placeholder={t('enter_your_email')}
                                         value={newEmail}
                                         onChangeText={setNewEmail}
                                         autoCapitalize="none"
@@ -259,18 +323,28 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
                                         onPress={handleUpdateEmail}
                                         disabled={updatingEmail}
                                     >
-                                        {updatingEmail ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.updateButtonText}>Send Code</Text>}
+                                        {updatingEmail ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.updateButtonText}>{t('send_code')}</Text>}
                                     </TouchableOpacity>
                                 </View>
                             )}
+
+                            {/* Language Switcher Row */}
+                            <TouchableOpacity style={[styles.infoRow, (i18n.language === 'ar' || i18n.language === 'ur') && { flexDirection: 'row-reverse' }]} onPress={() => setShowLangPicker(true)}>
+                                <Text style={styles.label}>{t('language')}</Text>
+                                <View style={{ flexDirection: (i18n.language === 'ar' || i18n.language === 'ur') ? 'row-reverse' : 'row', alignItems: 'center' }}>
+                                    <Text style={[styles.value, (i18n.language === 'ar' || i18n.language === 'ur') ? { marginLeft: 8 } : { marginRight: 8 }]}>{selectedLanguage.flag} {selectedLanguage.label}</Text>
+                                    <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                                </View>
+                            </TouchableOpacity>
+
                         </View>
                     </View>
 
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Medical Information</Text>
+                        <Text style={[styles.sectionTitle, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right', marginLeft: 0, marginRight: 6 }]}>{t('medical_information')}</Text>
                         <View style={styles.card}>
-                            <Text style={styles.medicalText}>
-                                {profile?.medical_history || 'No medical history recorded.'}
+                            <Text style={[styles.medicalText, (i18n.language === 'ar' || i18n.language === 'ur') && { textAlign: 'right' }]}>
+                                {profile?.medical_history || t('no_medical_history_recorded')}
                             </Text>
                         </View>
                     </View>
@@ -281,42 +355,23 @@ export default function PilgrimProfileScreen({ navigation, route }: Props) {
                         disabled={Boolean(isPending || isApproved)}
                     >
                         <Text style={[styles.actionButtonText, (isPending || isApproved) && styles.actionButtonTextDisabled]}>
-                            {isApproved ? 'Approved' : isPending ? 'Request Pending' : isRejected ? 'Request Again' : 'Request to be Moderator'}
+                            {isApproved ? t('approved') : isPending ? t('request_pending') : isRejected ? t('request_again') : t('request_to_be_moderator')}
                         </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                        <Text style={styles.logoutText}>Log Out</Text>
+                        <Text style={styles.logoutText}>{t('logout')}</Text>
                     </TouchableOpacity>
                 </Animated.View>
             </ScrollView>
+
+            {renderPickerModal()}
         </SafeAreaView>
     );
 }
 
-const handleRequestModerator = async () => {
-    Alert.alert(
-        'Request Moderator Access',
-        'Do you want to request to become a moderator? An admin will review your request.',
-        [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Request',
-                onPress: async () => {
-                    try {
-                        await api.post('/admin/request-moderator');
-                        Alert.alert('Success', 'Your request has been submitted.');
-                    } catch (error: any) {
-                        Alert.alert('Error', error.response?.data?.message || 'Failed to submit request');
-                    }
-                }
-            }
-        ]
-    );
-};
-
-const InfoRow = ({ label, value, last }: { label: string, value?: string, last?: boolean }) => (
-    <View style={[styles.infoRow, last && styles.noBorder]}>
+const InfoRow = ({ label, value, last, isRTL }: { label: string, value?: string, last?: boolean, isRTL?: boolean }) => (
+    <View style={[styles.infoRow, last && styles.noBorder, isRTL && { flexDirection: 'row-reverse' }]}>
         <Text style={styles.label}>{label}</Text>
         <Text style={styles.value}>{value || '-'}</Text>
     </View>
@@ -464,6 +519,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#F1F2F6',
+        alignItems: 'center',
     },
     noBorder: {
         borderBottomWidth: 0,
@@ -574,5 +630,40 @@ const styles = StyleSheet.create({
         color: 'white',
         fontWeight: '700',
         fontSize: 13,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        maxHeight: '50%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    pickerItem: {
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    pickerItemText: {
+        fontSize: 18,
+        color: '#333',
     },
 });

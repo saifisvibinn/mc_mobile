@@ -7,10 +7,14 @@ import { api, BASE_URL } from '../services/api';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
+import { useTranslation } from 'react-i18next';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'PilgrimMessages'>;
+
+type Props = NativeStackScreenProps<RootStackParamList, 'PilgrimMessagesScreen'>;
 
 export default function PilgrimMessagesScreen({ route, navigation }: Props) {
+    const { t, i18n } = useTranslation();
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
     const { groupId, groupName } = route.params;
     const [messages, setMessages] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -21,7 +25,7 @@ export default function PilgrimMessagesScreen({ route, navigation }: Props) {
     useEffect(() => {
         fetchMessages();
         // Mark all messages in this group as read
-        api.post(`/messages/group/${groupId}/mark-read`).catch(() => {});
+        api.post(`/messages/group/${groupId}/mark-read`).catch(() => { });
         return () => {
             // Cleanup on unmount
             if (soundRef.current) {
@@ -47,7 +51,7 @@ export default function PilgrimMessagesScreen({ route, navigation }: Props) {
     const renderItem = ({ item }: { item: any }) => {
         const isTts = item.type === 'tts';
         const isVoice = item.type === 'voice';
-        const senderName = item.sender_id?.full_name || 'Unknown';
+        const senderName = item.sender_id?.full_name || t('unknown');
         const isModeratorSender = item.sender_model === 'User';
         const isPlaying = playingId === item._id;
 
@@ -114,31 +118,32 @@ export default function PilgrimMessagesScreen({ route, navigation }: Props) {
             <View style={[
                 styles.messageCard,
                 isModeratorSender ? styles.messageCardModerator : styles.messageCardPilgrim,
-                item.is_urgent && styles.urgentMessage
+                item.is_urgent && styles.urgentMessage,
+                isRTL && { direction: 'rtl' }
             ]}>
-                <View style={styles.cardHeader}>
-                    <View style={styles.senderBlock}>
+                <View style={[styles.cardHeader, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <View style={[styles.senderBlock, isRTL && { flexDirection: 'row-reverse' }]}>
                         <View style={styles.avatar}>
                             <Text style={styles.avatarText}>
                                 {senderName.charAt(0).toUpperCase()}
                             </Text>
                         </View>
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
                             <Text style={styles.senderName}>{senderName}</Text>
-                            <View style={styles.metaRow}>
+                            <View style={[styles.metaRow, isRTL && { flexDirection: 'row-reverse' }]}>
                                 <Text style={[
                                     styles.senderRole,
                                     isModeratorSender ? styles.roleModerator : styles.rolePilgrim
                                 ]}>
-                                    {isModeratorSender ? (item.sender_id?.role || 'Moderator') : 'Pilgrim'}
+                                    {isModeratorSender ? (item.sender_id?.role === 'moderator' ? t('moderator') : (item.sender_id?.role || t('moderator'))) : t('pilgrim')}
                                 </Text>
                                 <Text style={styles.time}>
                                     {new Date(item.created_at).toLocaleString()}
                                 </Text>
                                 {item.is_urgent && (
-                                    <View style={styles.urgentBadge}>
+                                    <View style={[styles.urgentBadge, isRTL && { flexDirection: 'row-reverse' }]}>
                                         <Ionicons name="alert" size={10} color="white" />
-                                        <Text style={styles.urgentText}>URGENT</Text>
+                                        <Text style={styles.urgentText}>{t('urgent_caps')}</Text>
                                     </View>
                                 )}
                             </View>
@@ -147,33 +152,33 @@ export default function PilgrimMessagesScreen({ route, navigation }: Props) {
                 </View>
 
                 {item.type === 'text' && (
-                    <Text style={styles.content}>{item.content}</Text>
+                    <Text style={[styles.content, isRTL && { textAlign: 'right' }]}>{item.content}</Text>
                 )}
 
                 {isTts && (
                     <View>
-                        <View style={styles.ttsHeader}>
+                        <View style={[styles.ttsHeader, isRTL && { flexDirection: 'row-reverse', alignSelf: 'flex-end' }]}>
                             <Ionicons name="volume-high" size={20} color="#2563EB" />
-                            <Text style={styles.ttsLabel}>Text-to-Speech Message</Text>
+                            <Text style={[styles.ttsLabel, isRTL && { marginLeft: 0, marginRight: 5 }]}>{t('tts_message')}</Text>
                         </View>
-                        <Text style={styles.ttsText}>{item.original_text}</Text>
+                        <Text style={[styles.ttsText, isRTL && { textAlign: 'right' }]}>{item.original_text}</Text>
                         <TouchableOpacity
-                            style={[styles.playButton, (isPlaying && isSpeaking) && styles.playingButton]}
+                            style={[styles.playButton, (isPlaying && isSpeaking) && styles.playingButton, isRTL && { flexDirection: 'row-reverse', alignSelf: 'flex-end' }]}
                             onPress={() => playTts(item.original_text!, item._id)}
                         >
                             <Ionicons name={(isPlaying && isSpeaking) ? "pause" : "play"} size={20} color="white" />
-                            <Text style={styles.playText}>{(isPlaying && isSpeaking) ? 'Playing...' : 'Play'}</Text>
+                            <Text style={styles.playText}>{(isPlaying && isSpeaking) ? t('playing') : t('play')}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
                 {isVoice && (
                     <TouchableOpacity
-                        style={[styles.playButton, isPlaying && styles.playingButton]}
+                        style={[styles.playButton, isPlaying && styles.playingButton, isRTL && { flexDirection: 'row-reverse', alignSelf: 'flex-end' }]}
                         onPress={() => playVoice(item.media_url!, item._id)}
                     >
                         <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="white" />
-                        <Text style={styles.playText}>{isPlaying ? 'Playing...' : 'Play Voice'}</Text>
+                        <Text style={styles.playText}>{isPlaying ? t('playing') : t('play_voice')}</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -182,13 +187,13 @@ export default function PilgrimMessagesScreen({ route, navigation }: Props) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            <View style={[styles.header, isRTL && { flexDirection: 'row-reverse' }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, isRTL && { marginRight: 0, marginLeft: 16 }]}>
+                    <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={22} color="#0F172A" />
                 </TouchableOpacity>
-                <View>
+                <View style={isRTL && { alignItems: 'flex-end' }}>
                     <Text style={styles.title}>{groupName}</Text>
-                    <Text style={styles.subtitle}>Broadcasts & Updates</Text>
+                    <Text style={styles.subtitle}>{t('broadcasts_updates')}</Text>
                 </View>
             </View>
 
@@ -200,7 +205,7 @@ export default function PilgrimMessagesScreen({ route, navigation }: Props) {
                     renderItem={renderItem}
                     keyExtractor={item => item._id}
                     contentContainerStyle={styles.list}
-                    ListEmptyComponent={<Text style={styles.empty}>No messages yet.</Text>}
+                    ListEmptyComponent={<Text style={styles.empty}>{t('no_messages_yet')}</Text>}
                 />
             )}
         </SafeAreaView>

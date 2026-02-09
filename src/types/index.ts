@@ -9,6 +9,7 @@ export interface Pilgrim {
     };
     last_updated?: string;
     battery_percent?: number;
+    email?: string;
 }
 
 export interface Group {

@@ -12,6 +12,8 @@ import { useToast } from '../components/ToastContext';
 import * as Location from 'expo-location';
 import * as Battery from 'expo-battery';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { changeLanguage } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ModeratorDashboard'>;
 
@@ -32,6 +34,8 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
     const [unreadCount, setUnreadCount] = useState(0);
     const [shownSosId, setShownSosId] = useState<string | null>(null);
     const { showToast } = useToast();
+    const { t, i18n } = useTranslation();
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
 
     const fetchNotifications = useCallback(async () => {
         try {
@@ -42,11 +46,11 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                 if (latest && latest.type === 'sos_alert' && !latest.read && latest._id !== shownSosId) {
                     setShownSosId(latest._id);
                     Alert.alert(
-                        latest.title || 'SOS Alert',
-                        latest.message || 'A pilgrim needs help.',
+                        latest.title || t('sos_alert'),
+                        latest.message || t('sos_alert_default'),
                         [
-                            { text: 'Dismiss', style: 'cancel' },
-                            { text: 'Open Notifications', onPress: () => navigation.navigate('Notifications') }
+                            { text: t('dismiss'), style: 'cancel' },
+                            { text: t('open_notifications'), onPress: () => navigation.navigate('Notifications') }
                         ]
                     );
                 }
@@ -118,7 +122,7 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                 }
             );
         } catch (e) {
-            console.log('Error setting up location tracking');
+            console.log('Error in location tracking');
         }
     };
 
@@ -141,20 +145,20 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
 
     const handleDeleteGroup = async (groupId: string, groupName: string) => {
         Alert.alert(
-            "Delete Group",
-            `Are you sure you want to delete "${groupName}"?`,
+            t('delete_group_link'),
+            t('delete_group_question', { groupName }),
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t('cancel'), style: "cancel" },
                 {
-                    text: "Delete",
+                    text: t('remove'),
                     style: "destructive",
                     onPress: async () => {
                         try {
                             await api.delete(`/groups/${groupId}`);
-                            showToast(`${groupName} deleted`, 'success');
+                            showToast(t('group_deleted', { groupName }), 'success');
                             fetchGroups(); // Refresh list
                         } catch (error: any) {
-                            showToast('Failed to delete group', 'error');
+                            showToast(t('failed_delete_group'), 'error');
                         }
                     }
                 }
@@ -172,20 +176,72 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                 }}
             >
                 <Ionicons name="trash-outline" size={24} color="white" />
-                <Text style={styles.deleteActionText}>Delete</Text>
+                <Text style={styles.deleteActionText}>{t('remove')}</Text>
             </TouchableOpacity>
         );
     };
 
     const totalPilgrims = groups.reduce((sum, group) => sum + (group.pilgrims?.length || 0), 0);
 
+    const [showLangPicker, setShowLangPicker] = useState(false);
+    const LANGUAGES = [
+        { label: 'English', value: 'en', flag: '🇺🇸' },
+        { label: 'Arabic', value: 'ar', flag: '🇸🇦' },
+        { label: 'Urdu', value: 'ur', flag: '🇵🇰' },
+        { label: 'French', value: 'fr', flag: '🇫🇷' },
+        { label: 'Indonesian', value: 'id', flag: '🇮🇩' },
+        { label: 'Turkish', value: 'tr', flag: '🇹🇷' },
+    ];
+    const currentLang = LANGUAGES.find(l => l.value === i18n.language) || LANGUAGES[0];
+    const [selectedLanguage, setSelectedLanguage] = useState(currentLang);
+
+    const handleLanguageChange = async (lang: any) => {
+        setSelectedLanguage(lang);
+        await changeLanguage(lang.value);
+        setShowLangPicker(false);
+        // Delay showing the profile modal slightly to avoid transition issues
+        setTimeout(() => setShowProfile(true), 300);
+        try {
+            await api.put('/auth/update-language', { language: lang.value });
+        } catch (e) {
+            console.log('Failed to update language on backend', e);
+        }
+    };
+
+    const renderPickerModal = () => (
+        <Modal visible={showLangPicker} transparent animationType="slide">
+            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowLangPicker(false)}>
+                <View style={styles.modalContent}>
+                    <View style={[styles.modalHeader, isRTL && { flexDirection: 'row-reverse' }]}>
+                        <Text style={styles.modalTitle}>{t('select_option')}</Text>
+                        <TouchableOpacity onPress={() => setShowLangPicker(false)}>
+                            <Ionicons name="close" size={24} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+                    <FlatList
+                        data={LANGUAGES}
+                        keyExtractor={(item) => item.value}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity style={[styles.pickerItem, isRTL && { flexDirection: 'row-reverse' }]} onPress={() => handleLanguageChange(item)}>
+                                <Text style={styles.pickerItemText}>{item.flag}  {item.label}</Text>
+                                {selectedLanguage.value === item.value && (
+                                    <Ionicons name="checkmark" size={20} color="#007AFF" />
+                                )}
+                            </TouchableOpacity>
+                        )}
+                    />
+                </View>
+            </TouchableOpacity>
+        </Modal>
+    );
+
     return (
         <View style={styles.container}>
             {/* Header */}
-            <SafeAreaView style={styles.header} edges={['top']}>
-                <View>
-                    <Text style={styles.headerTitle}>Dashboard</Text>
-                    <Text style={styles.headerSubtitle}>Welcome back{profile?.full_name ? `, ${profile.full_name}` : ''}</Text>
+            <SafeAreaView style={[styles.header, isRTL && { flexDirection: 'row-reverse' }]} edges={['top']}>
+                <View style={isRTL && { alignItems: 'flex-end' }}>
+                    <Text style={styles.headerTitle}>{t('dashboard')}</Text>
+                    <Text style={styles.headerSubtitle}>{t('welcome_back')}{profile?.full_name ? `, ${profile.full_name}` : ''}</Text>
                 </View>
                 <View style={styles.headerActions}>
                     <TouchableOpacity
@@ -239,19 +295,34 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                                             <Text style={styles.avatarText}>{profile?.full_name?.charAt(0) || 'M'}</Text>
                                         )}
                                     </View>
-                                    <Text style={styles.profileName}>{profile?.full_name || 'Moderator'}</Text>
-                                    <Text style={styles.profileRole}>Verified Moderator</Text>
+                                    <Text style={styles.profileName}>{profile?.full_name || t('moderator')}</Text>
+                                    <Text style={styles.profileRole}>{t('verified_moderator')}</Text>
                                 </View>
 
                                 <View style={styles.profileDetails}>
-                                    <View style={styles.detailRow}>
-                                        <Text style={styles.detailLabel}>Email</Text>
-                                        <Text style={styles.detailValue}>{profile?.email || 'Loading...'}</Text>
+                                    <View style={[styles.detailRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                                        <Text style={styles.detailLabel}>{t('email')}</Text>
+                                        <Text style={styles.detailValue}>{profile?.email || t('loading')}</Text>
                                     </View>
-                                    <View style={styles.detailRow}>
-                                        <Text style={styles.detailLabel}>Phone</Text>
-                                        <Text style={styles.detailValue}>{profile?.phone_number || 'Loading...'}</Text>
+                                    <View style={[styles.detailRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                                        <Text style={styles.detailLabel}>{t('phone')}</Text>
+                                        <Text style={styles.detailValue}>{profile?.phone_number || t('loading')}</Text>
                                     </View>
+                                    <TouchableOpacity
+                                        style={[styles.detailRow, isRTL && { flexDirection: 'row-reverse' }]}
+                                        onPress={() => {
+                                            setShowProfile(false);
+                                            setTimeout(() => setShowLangPicker(true), 300);
+                                        }}
+                                    >
+                                        <Text style={styles.detailLabel}>{t('language')}</Text>
+                                        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center' }}>
+                                            <Text style={[styles.detailValue, isRTL ? { marginLeft: 8 } : { marginRight: 8 }]}>
+                                                {selectedLanguage.flag} {selectedLanguage.label}
+                                            </Text>
+                                            <Ionicons name="chevron-forward" size={16} color="#6B7280" style={isRTL && { transform: [{ rotate: '180deg' }] }} />
+                                        </View>
+                                    </TouchableOpacity>
                                 </View>
 
                                 <TouchableOpacity
@@ -261,42 +332,43 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                                         navigation.navigate('EditProfile');
                                     }}
                                 >
-                                    <Text style={styles.editProfileText}>Edit Profile</Text>
+                                    <Text style={styles.editProfileText}>{t('edit')}</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                                    <Text style={styles.logoutText}>Log Out</Text>
+                                    <Text style={styles.logoutText}>{t('log_out')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableWithoutFeedback>
                     </View>
                 </TouchableWithoutFeedback>
             </Modal>
+            {renderPickerModal()}
 
             {/* Stats */}
             <View style={styles.statsRow}>
                 <View style={styles.statCard}>
-                    <View style={styles.statIcon}>
+                    <View style={[styles.statIcon, isRTL && { alignSelf: 'flex-end' }]}>
                         <Ionicons name="grid" size={16} color="#2563EB" />
                     </View>
-                    <Text style={styles.statLabel}>Groups</Text>
-                    <Text style={styles.statValue}>{groups.length}</Text>
+                    <Text style={[styles.statLabel, isRTL && { textAlign: 'right' }]}>{t('groups')}</Text>
+                    <Text style={[styles.statValue, isRTL && { textAlign: 'right' }]}>{groups.length}</Text>
                 </View>
                 <View style={styles.statCard}>
-                    <View style={styles.statIcon}>
+                    <View style={[styles.statIcon, isRTL && { alignSelf: 'flex-end' }]}>
                         <Ionicons name="people" size={16} color="#16A34A" />
                     </View>
-                    <Text style={styles.statLabel}>Pilgrims</Text>
-                    <Text style={styles.statValue}>{totalPilgrims}</Text>
+                    <Text style={[styles.statLabel, isRTL && { textAlign: 'right' }]}>{t('pilgrims')}</Text>
+                    <Text style={[styles.statValue, isRTL && { textAlign: 'right' }]}>{totalPilgrims}</Text>
                 </View>
             </View>
 
             {/* Group List */}
             <View style={styles.listContainer}>
-                <View style={styles.listHeader}>
-                    <Text style={styles.sectionTitleList}>My Groups</Text>
+                <View style={[styles.listHeader, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <Text style={styles.sectionTitleList}>{t('my_groups')}</Text>
                     <TouchableOpacity onPress={() => navigation.navigate('CreateGroup')}>
-                        <Text style={styles.createLink}>Create Group</Text>
+                        <Text style={styles.createLink}>{t('create_group_link')}</Text>
                     </TouchableOpacity>
                 </View>
                 {loading ? (
@@ -312,16 +384,16 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                                 }
                             >
                                 <TouchableOpacity
-                                    style={styles.groupCard}
+                                    style={[styles.groupCard, isRTL && { flexDirection: 'row-reverse' }]}
                                     onPress={() => navigation.navigate('GroupDetails', { groupId: item._id, groupName: item.group_name })}
                                 >
-                                    <View style={styles.groupCardLeft}>
+                                    <View style={[styles.groupCardLeft, isRTL && { flexDirection: 'row-reverse' }]}>
                                         <View style={styles.groupIconCircle}>
                                             <Ionicons name="people" size={16} color="#2563EB" />
                                         </View>
-                                        <View>
+                                        <View style={isRTL && { alignItems: 'flex-end' }}>
                                             <Text style={styles.groupName}>{item.group_name}</Text>
-                                            <Text style={styles.groupDate}>Created {new Date(item.created_at).toLocaleDateString()}</Text>
+                                            <Text style={styles.groupDate}>{t('created_date', { date: new Date(item.created_at).toLocaleDateString() })}</Text>
                                         </View>
                                     </View>
                                     <View style={styles.pilgrimCountBadge}>
@@ -332,7 +404,7 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
                         )}
                         refreshing={loading}
                         onRefresh={() => { fetchGroups(); fetchProfile(); }}
-                        ListEmptyComponent={<Text style={styles.emptyText}>No groups found. Create one to get started!</Text>}
+                        ListEmptyComponent={<Text style={styles.emptyText}>{t('no_groups')}</Text>}
                         contentContainerStyle={{ paddingBottom: 100 }}
                     />
                 )}
@@ -620,6 +692,37 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#0F172A',
         marginBottom: 4,
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        maxHeight: '50%',
+        width: '100%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    pickerItem: {
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    pickerItemText: {
+        fontSize: 18,
+        color: '#333',
     },
     deleteAction: {
         backgroundColor: '#EF4444',

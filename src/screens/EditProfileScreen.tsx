@@ -7,10 +7,12 @@ import { RootStackParamList } from '../navigation/types';
 import { api, BASE_URL } from '../services/api';
 import { useToast } from '../components/ToastContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
 export default function EditProfileScreen({ navigation }: Props) {
+    const { t, i18n } = useTranslation();
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [age, setAge] = useState('');
@@ -47,7 +49,7 @@ export default function EditProfileScreen({ navigation }: Props) {
             }
         } catch (error) {
             console.error('Failed to fetch profile', error);
-            showToast('Failed to load profile', 'error');
+            showToast(t('failed_load_profile'), 'error');
         } finally {
             setInitialLoading(false);
         }
@@ -68,7 +70,7 @@ export default function EditProfileScreen({ navigation }: Props) {
 
     const handleSave = async () => {
         if (!name || !phone) {
-            showToast('Name and Phone are required', 'error');
+            showToast(t('name_phone_required'), 'error');
             return;
         }
 
@@ -104,11 +106,11 @@ export default function EditProfileScreen({ navigation }: Props) {
                 },
             });
 
-            showToast('Profile updated successfully', 'success');
+            showToast(t('profile_updated_success'), 'success');
             navigation.goBack();
         } catch (error: any) {
             console.error('Update error:', error);
-            showToast(error.response?.data?.message || 'Failed to update profile', 'error');
+            showToast(error.response?.data?.message || t('failed_update_profile'), 'error');
         } finally {
             setLoading(false);
         }
@@ -122,15 +124,18 @@ export default function EditProfileScreen({ navigation }: Props) {
         );
     }
 
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
+    const alignStyle = { textAlign: isRTL ? 'right' : 'left' } as const;
+
     return (
         <View style={styles.container}>
             <SafeAreaView style={styles.header} edges={['top']}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Text style={styles.backButtonText}>Cancel</Text>
+                    <Text style={styles.backButtonText}>{t('cancel')}</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Edit Profile</Text>
+                <Text style={styles.headerTitle}>{t('edit_profile')}</Text>
                 <TouchableOpacity onPress={handleSave} disabled={loading} style={styles.saveButton}>
-                    {loading ? <ActivityIndicator size="small" color="#007AFF" /> : <Text style={styles.saveButtonText}>Save</Text>}
+                    {loading ? <ActivityIndicator size="small" color="#007AFF" /> : <Text style={styles.saveButtonText}>{t('save')}</Text>}
                 </TouchableOpacity>
             </SafeAreaView>
 
@@ -149,67 +154,68 @@ export default function EditProfileScreen({ navigation }: Props) {
                         </TouchableOpacity>
                     </View>
                     <TouchableOpacity onPress={pickImage}>
-                        <Text style={styles.changePhotoText}>Change Profile Photo</Text>
+                        <Text style={styles.changePhotoText}>{t('change_profile_photo')}</Text>
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.form}>
-                    <Text style={styles.label}>Full Name</Text>
+                    <Text style={styles.label}>{t('full_name')}</Text>
                     <TextInput
-                        style={styles.input}
+                        style={[styles.input, alignStyle]}
                         value={name}
                         onChangeText={setName}
-                        placeholder="Your full name"
+                        placeholder={t('full_name_placeholder')}
                     />
 
-                    <Text style={styles.label}>Phone Number</Text>
+                    <Text style={styles.label}>{t('phone_number')}</Text>
                     <TextInput
-                        style={styles.input}
+                        style={[styles.input, { textAlign: 'left' }]} // Phone usually LTR
                         value={phone}
                         onChangeText={setPhone}
-                        placeholder="Your phone number"
+                        placeholder={t('phone_number_placeholder')}
                         keyboardType="phone-pad"
                     />
 
                     {isPilgrim && (
                         <>
-                            <Text style={styles.label}>Age (Optional)</Text>
+                            <Text style={styles.label}>{t('age_optional')}</Text>
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, alignStyle]}
                                 value={age}
                                 onChangeText={setAge}
-                                placeholder="Your age"
+                                placeholder={t('age_placeholder')}
                                 keyboardType="numeric"
                             />
 
-                            <Text style={styles.label}>Gender (Optional)</Text>
+                            <Text style={styles.label}>{t('gender_optional')}</Text>
                             <View style={styles.genderContainer}>
                                 <TouchableOpacity
                                     style={[styles.genderButton, gender === 'male' && styles.genderButtonActive]}
                                     onPress={() => setGender('male')}
                                 >
-                                    <Text style={[styles.genderButtonText, gender === 'male' && styles.genderButtonTextActive]}>Male</Text>
+                                    <Text style={[styles.genderButtonText, gender === 'male' && styles.genderButtonTextActive]}>{t('male')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.genderButton, gender === 'female' && styles.genderButtonActive]}
                                     onPress={() => setGender('female')}
                                 >
-                                    <Text style={[styles.genderButtonText, gender === 'female' && styles.genderButtonTextActive]}>Female</Text>
+                                    <Text style={[styles.genderButtonText, gender === 'female' && styles.genderButtonTextActive]}>{t('female')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.genderButton, gender === 'other' && styles.genderButtonActive]}
                                     onPress={() => setGender('other')}
                                 >
-                                    <Text style={[styles.genderButtonText, gender === 'other' && styles.genderButtonTextActive]}>Other</Text>
+                                    <Text style={[styles.genderButtonText, gender === 'other' && styles.genderButtonTextActive]}>{t('other')}</Text>
                                 </TouchableOpacity>
                             </View>
 
-                            <Text style={styles.label}>Medical History (Optional)</Text>
+                            <Text style={styles.label}>{t('medical_history')}</Text>
+
                             <TextInput
-                                style={[styles.input, styles.textArea]}
+                                style={[styles.input, styles.textArea, alignStyle]}
                                 value={medicalHistory}
                                 onChangeText={setMedicalHistory}
-                                placeholder="Any medical conditions we should know about"
+                                placeholder={t('medical_history_placeholder')}
                                 multiline
                                 numberOfLines={4}
                             />

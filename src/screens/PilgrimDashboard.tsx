@@ -10,6 +10,7 @@ import { useToast } from '../components/ToastContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PilgrimDashboard'>;
 
@@ -26,7 +27,7 @@ interface GroupInfo {
 }
 
 export default function PilgrimDashboard({ navigation, route }: Props) {
-    // Location sharing is now always-on
+    const { t, i18n } = useTranslation();
     const isSharingLocation = true;
     const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
     const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
@@ -91,7 +92,7 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
         try {
             const res = await api.get(`/messages/group/${gId}/unread`);
             if (res.data.success) setUnreadCount(res.data.unread_count);
-        } catch (_) {}
+        } catch (_) { }
     };
 
     const fetchGroupInfo = async () => {
@@ -160,12 +161,12 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
 
     const handleSOS = async () => {
         Alert.alert(
-            "SOS: I am lost",
-            "Send an emergency alert to your moderators with your current location?",
+            t('sos_lost'),
+            t('sos_confirmation'),
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t('cancel'), style: "cancel" },
                 {
-                    text: "Send Alert",
+                    text: t('send_alert'),
                     style: "destructive",
                     onPress: sendSOS
                 }
@@ -177,10 +178,10 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
         setSosActive(true);
         try {
             await api.post('/pilgrim/sos', {});
-            showToast('Alert sent to your moderators.', 'success');
+            showToast(t('alert_sent'), 'success');
             setTimeout(() => setSosActive(false), 1500);
         } catch (error) {
-            showToast('Failed to send SOS. Check connection.', 'error');
+            showToast(t('sos_failed'), 'error');
             setSosActive(false);
         }
     };
@@ -191,6 +192,8 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
         if (level >= 50) return 'battery-half';
         return 'battery-dead';
     };
+
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
 
     return (
         <View style={styles.container}>
@@ -203,8 +206,8 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
                             id: m._id,
                             latitude: m.current_latitude!,
                             longitude: m.current_longitude!,
-                            title: `Moderator: ${m.full_name}`,
-                            description: 'Group leader'
+                            title: `${t('moderator')}: ${m.full_name}`,
+                            description: t('group_leader')
                         })) || []
                     }
                 />
@@ -212,7 +215,7 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
 
             {/* Header overlay */}
             <SafeAreaView style={styles.header} edges={['top']}>
-                <View style={styles.headerContent}>
+                <View style={[styles.headerContent, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <TouchableOpacity
                         style={styles.profileButton}
                         onPress={() => navigation.navigate('PilgrimProfile', { userId: route.params.userId })}
@@ -225,7 +228,7 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
                             sosActive && { transform: [{ scale: pulseAnim }] }
                         ]}>
                             <Ionicons name="warning" size={16} color="white" style={{ marginRight: 6 }} />
-                            <Text style={styles.sosText}>SOS</Text>
+                            <Text style={styles.sosText}>{t('sos')}</Text>
                         </Animated.View>
                     </TouchableOpacity>
                 </View>
@@ -239,22 +242,22 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
                         onPress={() => navigation.navigate('JoinGroup', { userId: route.params.userId })}
                     >
                         <Ionicons name="enter-outline" size={18} color="white" style={{ marginRight: 8 }} />
-                        <Text style={styles.joinButtonText}>Join Group via Code</Text>
+                        <Text style={styles.joinButtonText}>{t('join_group_via_code')}</Text>
                     </TouchableOpacity>
                 )}
 
-                <View style={styles.statusRow}>
-                    <View style={styles.statusChip}>
+                <View style={[styles.statusRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.statusChip, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                         <Ionicons name="location-outline" size={18} color="#0F766E" />
-                        <View>
-                            <Text style={styles.chipLabel}>Location</Text>
-                            <Text style={styles.chipValue}>Active</Text>
+                        <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                            <Text style={styles.chipLabel}>{t('location')}</Text>
+                            <Text style={styles.chipValue}>{t('active')}</Text>
                         </View>
                     </View>
-                    <View style={styles.statusChip}>
+                    <View style={[styles.statusChip, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                         <Ionicons name={getBatteryIcon(batteryLevel)} size={18} color="#1E3A8A" />
-                        <View>
-                            <Text style={styles.chipLabel}>Battery</Text>
+                        <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                            <Text style={styles.chipLabel}>{t('battery')}</Text>
                             <Text style={styles.chipValue}>{batteryLevel !== null ? `${batteryLevel}%` : '--'}</Text>
                         </View>
                     </View>
@@ -262,26 +265,26 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
 
                 {groupInfo && (
                     <View style={styles.groupCard}>
-                        <View style={styles.groupHeaderRow}>
+                        <View style={[styles.groupHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                             <View style={styles.groupIconCircle}>
                                 <Ionicons name="people" size={16} color="#2563EB" />
                             </View>
-                            <View style={{ flex: 1 }}>
+                            <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
                                 <Text style={styles.groupName}>{groupInfo.group_name}</Text>
                                 <Text style={styles.moderatorLabel}>
-                                    Led by <Text style={styles.moderatorName}>{groupInfo.moderators[0]?.full_name || 'Assigned'}</Text>
+                                    {t('led_by')} <Text style={styles.moderatorName}>{groupInfo.moderators[0]?.full_name || t('assigned')}</Text>
                                 </Text>
                             </View>
                         </View>
                         <TouchableOpacity
-                            style={styles.messageButton}
+                            style={[styles.messageButton, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                             onPress={() => navigation.navigate('PilgrimMessagesScreen', {
                                 groupId: groupInfo.group_id,
                                 groupName: groupInfo.group_name
                             })}
                         >
-                            <Ionicons name="chatbubbles-outline" size={16} color="#2563EB" style={{ marginRight: 8 }} />
-                            <Text style={styles.messageButtonText}>Broadcasts & Updates</Text>
+                            <Ionicons name="chatbubbles-outline" size={16} color="#2563EB" style={{ marginRight: 8, marginLeft: isRTL ? 8 : 0 }} />
+                            <Text style={styles.messageButtonText}>{t('broadcasts_updates')}</Text>
                             {unreadCount > 0 && (
                                 <View style={styles.unreadBadge}>
                                     <Text style={styles.unreadBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../components/ToastContext';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useTranslation } from 'react-i18next';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'JoinGroup'>;
 
@@ -16,18 +17,20 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
     const [showScanner, setShowScanner] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
     const { showToast } = useToast();
+    const { t, i18n } = useTranslation();
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
     const userId = route.params?.userId;
 
     const handleJoin = async (groupCode?: string) => {
         const codeToJoin = groupCode || code;
 
         if (!codeToJoin) {
-            showToast('Please enter the group code', 'error');
+            showToast(t('enter_group_code'), 'error');
             return;
         }
 
         if (codeToJoin.length !== 6) {
-            showToast('Code must be 6 characters', 'error');
+            showToast(t('group_code_length'), 'error');
             return;
         }
 
@@ -35,13 +38,13 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
         try {
             const response = await api.post('/groups/join', { group_code: codeToJoin });
 
-            showToast(response.data.message || 'Joined group successfully!', 'success');
+            showToast(response.data.message || t('joined_group_success'), 'success');
 
             // Navigate to Dashboard with refresh param or similar
             navigation.replace('PilgrimDashboard', { userId });
 
         } catch (error: any) {
-            const msg = error.response?.data?.message || 'Failed to join group';
+            const msg = error.response?.data?.message || t('failed_join_group');
             showToast(msg, 'error');
         } finally {
             setLoading(false);
@@ -58,7 +61,7 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
         if (!permission?.granted) {
             const result = await requestPermission();
             if (!result.granted) {
-                showToast('Camera permission is required to scan QR codes', 'error');
+                showToast(t('camera_permission_required'), 'error');
                 return;
             }
         }
@@ -70,9 +73,9 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
             <SafeAreaView style={styles.container}>
                 <View style={styles.scannerHeader}>
                     <TouchableOpacity onPress={() => setShowScanner(false)} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color="#fff" />
+                        <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={styles.scannerTitle}>Scan QR Code</Text>
+                    <Text style={styles.scannerTitle}>{t('scan_qr_code')}</Text>
                     <View style={{ width: 24 }} />
                 </View>
                 <View style={styles.cameraContainer}>
@@ -87,7 +90,7 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
                     <View style={styles.scannerOverlay}>
                         <View style={styles.scannerFrame} />
                         <Text style={styles.scannerInstructions}>
-                            Position the QR code within the frame
+                            {t('position_qr_code')}
                         </Text>
                     </View>
                 </View>
@@ -97,11 +100,11 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#1e293b" />
+            <View style={[styles.header, isRTL && { flexDirection: 'row-reverse' }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, isRTL && { marginRight: 0, marginLeft: 16 }]}>
+                    <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color="#1e293b" />
                 </TouchableOpacity>
-                <Text style={styles.title}>Join a Group</Text>
+                <Text style={styles.title}>{t('join_group_title')}</Text>
             </View>
 
             <View style={styles.content}>
@@ -110,7 +113,7 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
                 </View>
 
                 <Text style={styles.instructions}>
-                    Enter the 6-character code provided by your group moderator or scan the QR code.
+                    {t('join_group_instructions')}
                 </Text>
 
                 <TextInput
@@ -132,23 +135,23 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
                     {loading ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
-                        <Text style={styles.buttonText}>Join Group</Text>
+                        <Text style={styles.buttonText}>{t('join_group_link')}</Text>
                     )}
                 </TouchableOpacity>
 
-                <View style={styles.divider}>
+                <View style={[styles.divider, isRTL && { flexDirection: 'row-reverse' }]}>
                     <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>OR</Text>
+                    <Text style={styles.dividerText}>{t('or')}</Text>
                     <View style={styles.dividerLine} />
                 </View>
 
                 <TouchableOpacity
-                    style={styles.scanButton}
+                    style={[styles.scanButton, isRTL && { flexDirection: 'row-reverse' }]}
                     onPress={openScanner}
                     disabled={loading}
                 >
                     <Ionicons name="scan" size={24} color="#2563eb" />
-                    <Text style={styles.scanButtonText}>Scan QR Code</Text>
+                    <Text style={[styles.scanButtonText, isRTL && { marginLeft: 0, marginRight: 8 }]}>{t('scan_qr_code')}</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

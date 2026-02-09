@@ -7,11 +7,15 @@ import { api, setAuthToken } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../components/ToastContext';
+import { useTranslation } from 'react-i18next';
+
 
 type PilgrimSignUpScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PilgrimSignUp'>;
 
 export default function PilgrimSignUpScreen() {
     const navigation = useNavigation<PilgrimSignUpScreenNavigationProp>();
+    const { t, i18n } = useTranslation();
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
     const { showToast } = useToast();
 
     const [fullName, setFullName] = useState('');
@@ -24,17 +28,17 @@ export default function PilgrimSignUpScreen() {
 
     const handleRegister = async () => {
         if (!fullName || !nationalId || !phoneNumber || !password || !confirmPassword) {
-            showToast('Please fill in all fields', 'error');
+            showToast(t('please_fill_all_fields'), 'error');
             return;
         }
 
         if (password !== confirmPassword) {
-            showToast('Passwords do not match', 'error');
+            showToast(t('passwords_dont_match'), 'error');
             return;
         }
 
         if (password.length < 6) {
-            showToast('Password must be at least 6 characters', 'error');
+            showToast(t('password_too_short'), 'error');
             return;
         }
 
@@ -56,7 +60,7 @@ export default function PilgrimSignUpScreen() {
             await AsyncStorage.setItem('user_id', user_id);
             setAuthToken(jwtToken);
 
-            showToast('Registration Successful!', 'success');
+            showToast(t('registration_successful'), 'success');
             navigation.replace('PilgrimDashboard', { userId: user_id });
 
         } catch (error: any) {
@@ -66,7 +70,7 @@ export default function PilgrimSignUpScreen() {
                 const firstError = Object.values(errors)[0] as string;
                 showToast(firstError, 'error', { title: 'Registration Failed' });
             } else {
-                const errorMessage = error.response?.data?.message || 'Registration failed';
+                const errorMessage = error.response?.data?.message || t('registration_failed');
                 showToast(errorMessage, 'error');
             }
         } finally {
@@ -79,49 +83,49 @@ export default function PilgrimSignUpScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>
                     <Ionicons name="people-circle-outline" size={80} color="#2563eb" />
-                    <Text style={styles.title}>Pilgrim Registration</Text>
-                    <Text style={styles.subtitle}>Sign up with your National ID</Text>
+                    <Text style={styles.title}>{t('pilgrim_registration')}</Text>
+                    <Text style={styles.subtitle}>{t('signup_national_id_subtitle')}</Text>
                 </View>
 
                 <View style={styles.form}>
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+                    <View style={[styles.inputContainer, isRTL && { flexDirection: 'row-reverse' }]}>
+                        <Ionicons name="person-outline" size={20} color="#666" style={[styles.inputIcon, isRTL && { marginRight: 0, marginLeft: 12 }]} />
                         <TextInput
-                            style={styles.input}
-                            placeholder="Full Name"
+                            style={[styles.input, isRTL && { textAlign: 'right' }]}
+                            placeholder={t('full_name')}
                             value={fullName}
                             onChangeText={setFullName}
                             autoCapitalize="words"
                         />
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="card-outline" size={20} color="#666" style={styles.inputIcon} />
+                    <View style={[styles.inputContainer, isRTL && { flexDirection: 'row-reverse' }]}>
+                        <Ionicons name="card-outline" size={20} color="#666" style={[styles.inputIcon, isRTL && { marginRight: 0, marginLeft: 12 }]} />
                         <TextInput
-                            style={styles.input}
-                            placeholder="National ID / Passport Number"
+                            style={[styles.input, isRTL && { textAlign: 'right' }]}
+                            placeholder={t('national_id_passport_placeholder')}
                             value={nationalId}
                             onChangeText={setNationalId}
                             autoCapitalize="none"
                         />
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+                    <View style={[styles.inputContainer, isRTL && { flexDirection: 'row-reverse' }]}>
+                        <Ionicons name="call-outline" size={20} color="#666" style={[styles.inputIcon, isRTL && { marginRight: 0, marginLeft: 12 }]} />
                         <TextInput
-                            style={styles.input}
-                            placeholder="Mobile Number"
+                            style={[styles.input, isRTL && { textAlign: 'right' }]}
+                            placeholder={t('mobile_number_placeholder')}
                             value={phoneNumber}
                             onChangeText={setPhoneNumber}
                             keyboardType="phone-pad"
                         />
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                    <View style={[styles.inputContainer, isRTL && { flexDirection: 'row-reverse' }]}>
+                        <Ionicons name="lock-closed-outline" size={20} color="#666" style={[styles.inputIcon, isRTL && { marginRight: 0, marginLeft: 12 }]} />
                         <TextInput
-                            style={styles.input}
-                            placeholder="Password"
+                            style={[styles.input, isRTL && { textAlign: 'right' }]}
+                            placeholder={t('password_placeholder')}
                             value={password}
                             onChangeText={setPassword}
                             secureTextEntry={!showPassword}
@@ -131,11 +135,11 @@ export default function PilgrimSignUpScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                    <View style={[styles.inputContainer, isRTL && { flexDirection: 'row-reverse' }]}>
+                        <Ionicons name="lock-closed-outline" size={20} color="#666" style={[styles.inputIcon, isRTL && { marginRight: 0, marginLeft: 12 }]} />
                         <TextInput
-                            style={styles.input}
-                            placeholder="Confirm Password"
+                            style={[styles.input, isRTL && { textAlign: 'right' }]}
+                            placeholder={t('confirm_password_placeholder')}
                             value={confirmPassword}
                             onChangeText={setConfirmPassword}
                             secureTextEntry={!showPassword}
@@ -150,12 +154,14 @@ export default function PilgrimSignUpScreen() {
                         {loading ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
-                            <Text style={styles.buttonText}>Register</Text>
+                            <Text style={styles.buttonText}>{t('register')}</Text>
                         )}
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={() => navigation.navigate('Login')} style={{ alignItems: 'center', marginTop: 20 }}>
-                        <Text style={{ color: '#666' }}>Already have an account? <Text style={{ color: '#2563eb', fontWeight: 'bold' }}>Login</Text></Text>
+                        <Text style={{ color: '#666', flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+                            {t('already_have_account')} <Text style={{ color: '#2563eb', fontWeight: 'bold' }}>{t('login')}</Text>
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>

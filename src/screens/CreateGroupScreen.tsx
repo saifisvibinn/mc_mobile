@@ -5,6 +5,7 @@ import { RootStackParamList } from '../navigation/types';
 import { api } from '../services/api';
 import { useToast } from '../components/ToastContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
 
@@ -12,17 +13,19 @@ export default function CreateGroupScreen({ navigation }: Props) {
     const [groupName, setGroupName] = useState('');
     const [loading, setLoading] = useState(false);
     const { showToast } = useToast();
+    const { t, i18n } = useTranslation();
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
 
     const handleCreateGroup = async () => {
         const trimmedName = groupName.trim();
 
         if (!trimmedName) {
-            showToast('Please enter a group name', 'error', { title: 'Missing Name' });
+            showToast(t('enter_group_name'), 'error', { title: t('missing_name') });
             return;
         }
 
         if (trimmedName.length < 3) {
-            showToast('Group name must be at least 3 characters long', 'error', { title: 'Name Too Short' });
+            showToast(t('group_name_short'), 'error', { title: t('name_too_short') });
             return;
         }
 
@@ -41,8 +44,8 @@ export default function CreateGroupScreen({ navigation }: Props) {
             }
         } catch (error: any) {
             console.error(error);
-            const errorMessage = error.response?.data?.message || 'Failed to create group. Please try again.';
-            showToast(errorMessage, 'error', { title: 'Error' });
+            const errorMessage = error.response?.data?.message || t('failed_create_group');
+            showToast(errorMessage, 'error', { title: t('error') });
         } finally {
             setLoading(false);
         }
@@ -63,9 +66,9 @@ export default function CreateGroupScreen({ navigation }: Props) {
                         showsVerticalScrollIndicator={false}
                     >
                         {/* Header */}
-                        <View style={styles.header}>
+                        <View style={[styles.header, isRTL && { alignItems: 'flex-end' }]}>
                             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                                <Text style={styles.backButtonText}>←</Text>
+                                <Text style={styles.backButtonText}>{isRTL ? '→' : '←'}</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -74,19 +77,19 @@ export default function CreateGroupScreen({ navigation }: Props) {
                             <View style={styles.iconCircle}>
                                 <Text style={styles.iconText}>👥</Text>
                             </View>
-                            <Text style={styles.title}>Create New Group</Text>
+                            <Text style={styles.title}>{t('create_new_group')}</Text>
                             <Text style={styles.subtitle}>
-                                Give your group a name to start{'\n'}tracking and managing pilgrims.
+                                {t('create_group_subtitle')}
                             </Text>
                         </View>
 
                         {/* Form */}
                         <View style={styles.formContainer}>
                             <View style={styles.inputWrapper}>
-                                <Text style={styles.label}>Group Name</Text>
+                                <Text style={[styles.label, isRTL && { textAlign: 'right' }]}>{t('group_name_label')}</Text>
                                 <TextInput
-                                    style={styles.input}
-                                    placeholder="e.g. Hajj Group 2026"
+                                    style={[styles.input, isRTL && { textAlign: 'right' }]}
+                                    placeholder={t('group_name_placeholder')}
                                     placeholderTextColor="#999"
                                     value={groupName}
                                     onChangeText={setGroupName}
@@ -102,7 +105,7 @@ export default function CreateGroupScreen({ navigation }: Props) {
                                 {loading ? (
                                     <ActivityIndicator color="#fff" />
                                 ) : (
-                                    <Text style={styles.buttonText}>Create Group</Text>
+                                    <Text style={styles.buttonText}>{t('create_group_link')}</Text>
                                 )}
                             </TouchableOpacity>
                         </View>

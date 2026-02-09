@@ -11,14 +11,16 @@ import { useToast } from '../components/ToastContext';
 import ConfirmationModal from '../components/ConfirmationModal';
 import GroupCodeModal from '../components/GroupCodeModal';
 import Map from '../components/Map';
-
 import ComposeMessageModal from '../components/ComposeMessageModal';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupDetails'>;
 
 export default function GroupDetailsScreen({ route, navigation }: Props) {
     const { groupId, groupName, focusPilgrimId, openProfile } = route.params;
+    const { t, i18n } = useTranslation();
+    const isRTL = i18n.language === 'ar' || i18n.language === 'ur';
     const didAutoFocus = useRef(false);
     const [pilgrims, setPilgrims] = useState<Pilgrim[]>([]);
     const [loading, setLoading] = useState(true);
@@ -34,21 +36,30 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
     const [searchQuery, setSearchQuery] = useState('');
     const isFocused = useIsFocused();
 
-    // Add Pilgrim Form State
+    // Form States
     const [existingIdentifier, setExistingIdentifier] = useState('');
     const [adding, setAdding] = useState(false);
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [inviting, setInviting] = useState(false);
+
+    // Modal States
+    const [showActionMenu, setShowActionMenu] = useState(false);
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showGroupCodeModal, setShowGroupCodeModal] = useState(false);
+    const [showDeletePilgrimModal, setShowDeletePilgrimModal] = useState(false);
+    const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
+    const [selectedPilgrim, setSelectedPilgrim] = useState<{ id: string, name: string } | null>(null);
 
     const fetchGroupDetails = async (options?: { silent?: boolean }) => {
         try {
             if (!options?.silent) setLoading(true);
             const response = await api.get(`/groups/${groupId}`);
-            // Backend returns group object directly for single group
             if (response.data) {
                 setPilgrims(response.data.pilgrims || []);
             }
         } catch (error: any) {
             console.error(error);
-            if (!options?.silent) showToast('Failed to load pilgrims', 'error', { title: 'Error' });
+            if (!options?.silent) showToast(t('failed_load_pilgrims'), 'error', { title: t('error') });
         } finally {
             if (!options?.silent) setLoading(false);
         }
@@ -78,67 +89,71 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
 
     const handleAddPilgrim = async () => {
         if (!existingIdentifier.trim()) {
-            showToast('Email, phone number, or national ID is required.', 'error', { title: 'Missing Info' });
+            showToast(t('identifier_required'), 'error', { title: t('missing_info') });
             return;
         }
-
         setAdding(true);
         try {
             const response = await api.post(`/groups/${groupId}/add-pilgrim`, {
                 identifier: existingIdentifier.trim()
             });
-
             if (response.data.success) {
-                const successName = existingIdentifier.trim();
-                showToast(`${successName} has been added to the group.`, 'success', { title: 'Pilgrim Added!' });
+                showToast(t('pilgrim_added_success', { name: existingIdentifier.trim() }), 'success', { title: t('pilgrim_added_title') });
                 setShowAddModal(false);
                 setExistingIdentifier('');
                 fetchGroupDetails();
             }
         } catch (error: any) {
-            console.error(error);
-            showToast(error.response?.data?.message || 'Failed to add pilgrim', 'error', { title: 'Error' });
+            showToast(error.response?.data?.message || t('failed_add_pilgrim'), 'error');
         } finally {
             setAdding(false);
         }
     };
 
-    // Delete Confirmation State
-    const [showDeletePilgrimModal, setShowDeletePilgrimModal] = useState(false);
-    const [selectedPilgrim, setSelectedPilgrim] = useState<{ id: string, name: string } | null>(null);
-    const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
-
-    // Invite Moderator State
-    const [showInviteModal, setShowInviteModal] = useState(false);
-    const [inviteEmail, setInviteEmail] = useState('');
-    const [inviting, setInviting] = useState(false);
-
     const handleInviteModerator = async () => {
         if (!inviteEmail) {
-            showToast('Please enter an email address', 'error');
+            showToast(t('enter_email'), 'error');
             return;
         }
-
         setInviting(true);
         try {
             await api.post(`/groups/${groupId}/invite`, { email: inviteEmail });
-            showToast('Invitation sent successfully', 'success');
+            showToast(t('invitation_sent'), 'success');
             setShowInviteModal(false);
             setInviteEmail('');
         } catch (error: any) {
-            console.error('Invite error:', error);
-            showToast(error.response?.data?.message || 'Failed to send invitation', 'error');
+            showToast(error.response?.data?.message || t('failed_send_invitation'), 'error');
         } finally {
             setInviting(false);
         }
     };
 
-    // Group Code Modal State
-    const [showGroupCodeModal, setShowGroupCodeModal] = useState(false);
+    const confirmRemovePilgrim = async () => {
+        if (!selectedPilgrim) return;
+        try {
+            await api.post(`/groups/${groupId}/remove-pilgrim`, { user_id: selectedPilgrim.id });
+            showToast(t('pilgrim_removed_success'), 'success');
+            setPilgrims(prev => prev.filter(p => p._id !== selectedPilgrim.id));
+        } catch (error: any) {
+            showToast(t('failed_remove_pilgrim'), 'error');
+        } finally {
+            setShowDeletePilgrimModal(false);
+            setSelectedPilgrim(null);
+        }
+    };
 
-    const handleRemovePilgrim = (pilgrimId: string, pilgrimName: string) => {
-        setSelectedPilgrim({ id: pilgrimId, name: pilgrimName });
-        setShowDeletePilgrimModal(true);
+    const confirmDeleteGroup = async () => {
+        try {
+            setLoading(true);
+            await api.delete(`/groups/${groupId}`);
+            showToast(t('group_deleted_success'), 'success');
+            setShowDeleteGroupModal(false);
+            navigation.goBack();
+        } catch (error: any) {
+            showToast(t('failed_delete_group'), 'error');
+            setLoading(false);
+            setShowDeleteGroupModal(false);
+        }
     };
 
     const pilgrimsWithLocation = pilgrims.filter(p => p.location && p.location.lat && p.location.lng);
@@ -147,7 +162,7 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
         latitude: p.location!.lat,
         longitude: p.location!.lng,
         title: p.full_name,
-        description: `Battery: ${p.battery_percent || '?'}%`
+        description: `${t('battery')}: ${p.battery_percent || '?'}%`
     }));
 
     const getInitialRegion = () => {
@@ -165,69 +180,25 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
         return { latitude, longitude, latitudeDelta, longitudeDelta };
     };
 
-    const selectedPilgrimForMap = selectedPilgrimId
-        ? pilgrimsWithLocation.find(p => p._id === selectedPilgrimId)
-        : undefined;
-
-    const mapRegion = selectedPilgrimForMap
-        ? {
-            latitude: selectedPilgrimForMap.location!.lat,
-            longitude: selectedPilgrimForMap.location!.lng,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01
-        }
-        : getInitialRegion();
-
-    const confirmRemovePilgrim = async () => {
-        if (!selectedPilgrim) return;
-
-        try {
-            await api.post(`/groups/${groupId}/remove-pilgrim`, { user_id: selectedPilgrim.id });
-            showToast('Pilgrim removed successfully', 'success');
-            setPilgrims(prev => prev.filter(p => p._id !== selectedPilgrim.id));
-        } catch (error: any) {
-            showToast('Failed to remove pilgrim', 'error');
-        } finally {
-            setShowDeletePilgrimModal(false);
-            setSelectedPilgrim(null);
-        }
-    };
-
-    const handleDeleteGroup = async () => {
-        setShowDeleteGroupModal(true);
-    };
-
-    const confirmDeleteGroup = async () => {
-        try {
-            setLoading(true);
-            await api.delete(`/groups/${groupId}`);
-            showToast('Group deleted successfully', 'success');
-            setShowDeleteGroupModal(false);
-            navigation.goBack();
-        } catch (error: any) {
-            showToast('Failed to delete group', 'error');
-            setLoading(false);
-            setShowDeleteGroupModal(false);
-        }
-    };
-
-    // Action Menu State
-    const [showActionMenu, setShowActionMenu] = useState(false);
-
-    // ... (rest of logic) ...
+    const selectedPilgrimForMap = selectedPilgrimId ? pilgrimsWithLocation.find(p => p._id === selectedPilgrimId) : undefined;
+    const mapRegion = selectedPilgrimForMap ? {
+        latitude: selectedPilgrimForMap.location!.lat,
+        longitude: selectedPilgrimForMap.location!.lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01
+    } : getInitialRegion();
 
     return (
         <View style={styles.container}>
-            <SafeAreaView style={styles.header} edges={['top']}>
+            <SafeAreaView style={[styles.header, isRTL && { flexDirection: 'row-reverse' }]} edges={['top']}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+                    <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{groupName}</Text>
                 <View style={{ width: 32 }} />
             </SafeAreaView>
 
             <View style={styles.content}>
-                {/* Map */}
                 <View style={styles.mapCard}>
                     <Map
                         initialRegion={mapRegion}
@@ -238,41 +209,31 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
                     />
                 </View>
 
-                {/* Stats Row */}
-                <View style={styles.statsRow}>
-                    <Text style={styles.statsLabel}>Total Pilgrims</Text>
+                <View style={[styles.statsRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <Text style={styles.statsLabel}>{t('total_pilgrims')}</Text>
                     <Text style={styles.statsCount}>{pilgrims.length}</Text>
                 </View>
 
-                {/* Message Action Buttons */}
-                <View style={styles.messageActions}>
-                    <TouchableOpacity
-                        style={styles.messageActionBtn}
-                        onPress={() => setShowBroadcastModal(true)}
-                    >
+                <View style={[styles.messageActions, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <TouchableOpacity style={styles.messageActionBtn} onPress={() => setShowBroadcastModal(true)}>
                         <Ionicons name="megaphone-outline" size={18} color="#2563EB" />
-                        <Text style={styles.messageActionText}>Broadcast Message</Text>
+                        <Text style={styles.messageActionText}>{t('broadcast_message')}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.messageActionBtn}
-                        onPress={() => navigation.navigate('ModeratorMessagesScreen', { groupId, groupName })}
-                    >
+                    <TouchableOpacity style={styles.messageActionBtn} onPress={() => navigation.navigate('ModeratorMessagesScreen', { groupId, groupName })}>
                         <Ionicons name="chatbubbles-outline" size={18} color="#2563EB" />
-                        <Text style={styles.messageActionText}>Sent Messages</Text>
+                        <Text style={styles.messageActionText}>{t('sent_messages')}</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Minimal Section Header */}
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Pilgrim List</Text>
+                <View style={[styles.sectionHeader, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <Text style={styles.sectionTitle}>{t('pilgrim_list')}</Text>
                 </View>
 
-                {/* Search Bar */}
-                <View style={styles.searchContainer}>
-                    <Ionicons name="search" size={18} color="#94A3B8" style={{ marginRight: 8 }} />
+                <View style={[styles.searchContainer, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <Ionicons name="search" size={18} color="#94A3B8" style={{ [isRTL ? 'marginLeft' : 'marginRight']: 8 }} />
                     <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search by name, ID, or phone..."
+                        style={[styles.searchInput, isRTL && { textAlign: 'right' }]}
+                        placeholder={t('search_placeholder_pilgrim')}
                         placeholderTextColor="#94A3B8"
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -300,324 +261,203 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
                             );
                         })}
                         keyExtractor={item => item._id}
-                        showsVerticalScrollIndicator={false}
                         renderItem={({ item }) => (
                             <TouchableOpacity
-                                style={[styles.pilgrimCard, selectedPilgrimId === item._id && styles.pilgrimCardSelected]}
+                                style={[styles.pilgrimCard, selectedPilgrimId === item._id && styles.pilgrimCardSelected, isRTL && { flexDirection: 'row-reverse' }]}
                                 onPress={() => setSelectedPilgrimId(item._id)}
                                 activeOpacity={0.9}
                             >
-                                <View style={styles.pilgrimInfo}>
-                                    <View style={[styles.avatarSmall, selectedPilgrimId === item._id && styles.avatarSmallSelected]}>
+                                <View style={[styles.pilgrimInfo, isRTL && { flexDirection: 'row-reverse' }]}>
+                                    <View style={[styles.avatarSmall, selectedPilgrimId === item._id && styles.avatarSmallSelected, { [isRTL ? 'marginLeft' : 'marginRight']: 12 }]}>
                                         <Text style={styles.avatarTextSmall}>{item.full_name.charAt(0)}</Text>
                                     </View>
-                                    <View>
-                                        <Text style={styles.pilgrimName}>{item.full_name}</Text>
-                                        <Text style={styles.pilgrimId}>ID: {item.national_id}</Text>
+                                    <View style={[{ flex: 1 }, isRTL && { alignItems: 'flex-end' }]}>
+                                        <Text style={styles.pilgrimName} numberOfLines={1}>{item.full_name}</Text>
+                                        <Text style={styles.pilgrimId} numberOfLines={1}>{t('national_id')}: {item.national_id}</Text>
                                         {item.location && (
-                                            <View style={styles.statusIndicator}>
-                                                <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
-                                                <Text style={styles.statusText}>Online</Text>
+                                            <View style={[styles.statusIndicator, isRTL && { flexDirection: 'row-reverse' }]}>
+                                                <View style={[styles.statusDot, { backgroundColor: '#10B981', [isRTL ? 'marginLeft' : 'marginRight']: 4 }]} />
+                                                <Text style={styles.statusText}>{t('active')}</Text>
                                             </View>
                                         )}
                                     </View>
                                 </View>
-                                <View style={styles.pilgrimActions}>
-                                    <TouchableOpacity
-                                        style={styles.pilgrimActionButton}
-                                        onPress={() => {
-                                            setProfilePilgrim(item);
-                                            setShowProfileModal(true);
-                                        }}
-                                    >
-                                        <Text style={styles.pilgrimActionText}>Show Profile</Text>
+                                <View style={[styles.pilgrimActions, isRTL && { flexDirection: 'row-reverse' }]}>
+                                    <TouchableOpacity style={styles.pilgrimIconBtn} onPress={() => { setProfilePilgrim(item); setShowProfileModal(true); }}>
+                                        <Ionicons name="person-outline" size={18} color="#475569" />
                                     </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[styles.pilgrimActionButton, styles.pilgrimActionPrimary]}
-                                        onPress={() => {
-                                            setSelectedPilgrimId(item._id);
-                                            setDirectRecipientId(item._id);
-                                            setDirectRecipientName(item.full_name);
-                                            setShowDirectModal(true);
-                                        }}
-                                    >
-                                        <Text style={[styles.pilgrimActionText, styles.pilgrimActionTextPrimary]}>Send Alert</Text>
+                                    <TouchableOpacity style={[styles.pilgrimIconBtn, styles.pilgrimIconBtnPrimary]} onPress={() => { setSelectedPilgrimId(item._id); setDirectRecipientId(item._id); setDirectRecipientName(item.full_name); setShowDirectModal(true); }}>
+                                        <Ionicons name="megaphone-outline" size={18} color="white" />
                                     </TouchableOpacity>
                                 </View>
                             </TouchableOpacity>
                         )}
                         contentContainerStyle={{ paddingBottom: 100 }}
-                        ListEmptyComponent={<Text style={styles.emptyText}>No pilgrims in this group yet.</Text>}
+                        ListEmptyComponent={<Text style={styles.emptyText}>{t('no_pilgrims_group')}</Text>}
                         ListFooterComponent={
-                            <TouchableOpacity
-                                style={styles.deleteGroupButton}
-                                onPress={handleDeleteGroup}
-                            >
-                                <Text style={styles.deleteGroupText}>Delete Group</Text>
+                            <TouchableOpacity style={styles.deleteGroupButton} onPress={() => setShowDeleteGroupModal(true)}>
+                                <Text style={styles.deleteGroupText}>{t('delete_group_link')}</Text>
                             </TouchableOpacity>
                         }
                     />
                 )}
             </View>
 
-            {/* FAB triggers Action Menu */}
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => setShowActionMenu(true)}
-            >
+            <TouchableOpacity style={styles.fab} onPress={() => setShowActionMenu(true)}>
                 <Ionicons name="add" size={30} color="white" />
             </TouchableOpacity>
 
-            {/* Action Menu Modal (Bottom Sheet Style) */}
-            <Modal
-                visible={showActionMenu}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowActionMenu(false)}
-            >
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setShowActionMenu(false)}
-                >
+            <Modal visible={showActionMenu} transparent={true} animationType="fade" onRequestClose={() => setShowActionMenu(false)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowActionMenu(false)}>
                     <View style={styles.actionSheetContent}>
-                        <Text style={styles.actionSheetTitle}>Group Options</Text>
-
-                        <TouchableOpacity
-                            style={styles.actionOption}
-                            onPress={() => { setShowActionMenu(false); setShowInviteModal(true); }}
-                        >
-                            <Ionicons name="shield-checkmark-outline" size={22} color="#334155" style={styles.actionOptionIcon} />
-                            <Text style={styles.actionOptionText}>Invite Moderator</Text>
+                        <Text style={styles.actionSheetTitle}>{t('group_options')}</Text>
+                        <TouchableOpacity style={[styles.actionOption, isRTL && { flexDirection: 'row-reverse' }]} onPress={() => { setShowActionMenu(false); setShowInviteModal(true); }}>
+                            <Ionicons name="shield-checkmark-outline" size={22} color="#334155" style={{ [isRTL ? 'marginLeft' : 'marginRight']: 16 }} />
+                            <Text style={styles.actionOptionText}>{t('invite_moderator')}</Text>
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.actionOption}
-                            onPress={() => { setShowActionMenu(false); setShowAddModal(true); }}
-                        >
-                            <Ionicons name="person-add-outline" size={22} color="#334155" style={styles.actionOptionIcon} />
-                            <Text style={styles.actionOptionText}>Manually Add Pilgrim</Text>
+                        <TouchableOpacity style={[styles.actionOption, isRTL && { flexDirection: 'row-reverse' }]} onPress={() => { setShowActionMenu(false); setShowAddModal(true); }}>
+                            <Ionicons name="person-add-outline" size={22} color="#334155" style={{ [isRTL ? 'marginLeft' : 'marginRight']: 16 }} />
+                            <Text style={styles.actionOptionText}>{t('manually_add_pilgrim')}</Text>
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.actionOption}
-                            onPress={() => { setShowActionMenu(false); setShowGroupCodeModal(true); }}
-                        >
-                            <Ionicons name="qr-code-outline" size={22} color="#334155" style={styles.actionOptionIcon} />
-                            <Text style={styles.actionOptionText}>View Group Code</Text>
+                        <TouchableOpacity style={[styles.actionOption, isRTL && { flexDirection: 'row-reverse' }]} onPress={() => { setShowActionMenu(false); setShowGroupCodeModal(true); }}>
+                            <Ionicons name="qr-code-outline" size={22} color="#334155" style={{ [isRTL ? 'marginLeft' : 'marginRight']: 16 }} />
+                            <Text style={styles.actionOptionText}>{t('view_group_code')}</Text>
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.cancelOption}
-                            onPress={() => setShowActionMenu(false)}
-                        >
-                            <Text style={styles.cancelOptionText}>Cancel</Text>
+                        <TouchableOpacity style={styles.cancelOption} onPress={() => setShowActionMenu(false)}>
+                            <Text style={styles.cancelOptionText}>{t('cancel')}</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
             </Modal>
 
-            <ComposeMessageModal
-                visible={showBroadcastModal}
-                onClose={() => setShowBroadcastModal(false)}
-                groupId={groupId}
-                onSuccess={() => showToast('Message broadcasted successfully', 'success')}
-            />
+            <ComposeMessageModal visible={showBroadcastModal} onClose={() => setShowBroadcastModal(false)} groupId={groupId} onSuccess={() => showToast(t('message_broadcasted'), 'success')} />
             <ComposeMessageModal
                 visible={showDirectModal}
-                onClose={() => {
-                    setShowDirectModal(false);
-                    setDirectRecipientId(null);
-                    setDirectRecipientName('');
-                }}
+                onClose={() => { setShowDirectModal(false); setDirectRecipientId(null); setDirectRecipientName(''); }}
                 groupId={groupId}
                 recipientId={directRecipientId}
                 submitPath="/messages/individual"
-                title={directRecipientName ? `Alert ${directRecipientName}` : 'Send Alert'}
-                onSuccess={() => showToast('Alert sent successfully', 'success')}
+                title={directRecipientName ? `${t('alert_sent_success')} ${directRecipientName}` : t('send_alert')}
+                onSuccess={() => showToast(t('alert_sent_success'), 'success')}
             />
 
-            {/* Pilgrim Profile Modal */}
-            <Modal
-                visible={showProfileModal}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowProfileModal(false)}
-            >
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setShowProfileModal(false)}
-                >
+            <Modal visible={showProfileModal} transparent={true} animationType="fade" onRequestClose={() => setShowProfileModal(false)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowProfileModal(false)}>
                     <View style={styles.modalContentSmall}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Pilgrim Profile</Text>
-                            <TouchableOpacity onPress={() => setShowProfileModal(false)}>
-                                <Text style={styles.closeText}>✕</Text>
-                            </TouchableOpacity>
+                        <View style={[styles.modalHeader, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.modalTitle}>{t('pilgrim_profile')}</Text>
+                            <TouchableOpacity onPress={() => setShowProfileModal(false)}><Text style={styles.closeText}>✕</Text></TouchableOpacity>
                         </View>
-
-                        <View style={styles.profileHeaderRow}>
-                            <View style={styles.profileAvatar}>
-                                <Text style={styles.profileAvatarText}>
-                                    {profilePilgrim?.full_name?.charAt(0) || 'P'}
-                                </Text>
-                            </View>
-                            <View>
+                        <View style={[styles.profileHeaderRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <View style={styles.profileAvatar}><Text style={styles.profileAvatarText}>{profilePilgrim?.full_name?.charAt(0) || 'P'}</Text></View>
+                            <View style={isRTL && { alignItems: 'flex-end' }}>
                                 <Text style={styles.profileName}>{profilePilgrim?.full_name || '-'}</Text>
-                                <Text style={styles.profileSub}>{profilePilgrim?.phone_number || 'No phone on file'}</Text>
+                                <Text style={styles.profileSub}>{profilePilgrim?.phone_number || t('no_phone')}</Text>
                             </View>
                         </View>
-
-                        <View style={styles.profileRow}>
-                            <Text style={styles.profileLabel}>National ID</Text>
+                        <View style={[styles.profileRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.profileLabel}>{t('national_id')}</Text>
                             <Text style={styles.profileValue}>{profilePilgrim?.national_id || '-'}</Text>
                         </View>
-                        <View style={styles.profileRow}>
-                            <Text style={styles.profileLabel}>Email</Text>
+                        <View style={[styles.profileRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.profileLabel}>{t('email')}</Text>
                             <Text style={styles.profileValue}>{profilePilgrim?.email || '-'}</Text>
                         </View>
-                        <View style={styles.profileRow}>
-                            <Text style={styles.profileLabel}>Battery</Text>
+                        <View style={[styles.profileRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.profileLabel}>{t('battery')}</Text>
                             <Text style={styles.profileValue}>{profilePilgrim?.battery_percent !== undefined ? `${profilePilgrim.battery_percent}%` : '-'}</Text>
                         </View>
                         {profilePilgrim?.phone_number && (
-                            <View style={styles.profileActionRow}>
-                                <TouchableOpacity
-                                    style={styles.callButton}
-                                    onPress={() => Linking.openURL(`tel:${profilePilgrim.phone_number}`)}
-                                >
-                                    <Ionicons name="call" size={16} color="white" style={{ marginRight: 6 }} />
-                                    <Text style={styles.callButtonText}>Call Pilgrim</Text>
+                            <View style={[styles.profileActionRow, isRTL && { alignSelf: 'flex-end' }]}>
+                                <TouchableOpacity style={[styles.callButton, isRTL && { flexDirection: 'row-reverse' }]} onPress={() => Linking.openURL(`tel:${profilePilgrim.phone_number}`)}>
+                                    <Ionicons name="call" size={16} color="white" style={{ [isRTL ? 'marginLeft' : 'marginRight']: 6 }} />
+                                    <Text style={styles.callButtonText}>{t('call_pilgrim')}</Text>
                                 </TouchableOpacity>
                             </View>
                         )}
+                        <TouchableOpacity style={[styles.deletePilgrimButton, { marginTop: 10, alignSelf: 'center' }]} onPress={() => { setShowProfileModal(false); setSelectedPilgrim({ id: profilePilgrim!._id, name: profilePilgrim!.full_name }); setShowDeletePilgrimModal(true); }}>
+                            <Text style={{ color: '#EF4444', fontWeight: '600' }}>{t('remove_pilgrim_title')}</Text>
+                        </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
             </Modal>
-            {/* Add Pilgrim Modal */}
-            <Modal
-                visible={showAddModal}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowAddModal(false)}
-            >
+
+            <Modal visible={showAddModal} transparent={true} animationType="slide" onRequestClose={() => setShowAddModal(false)}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Add Pilgrim</Text>
-                            <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                                <Text style={styles.closeText}>✕</Text>
-                            </TouchableOpacity>
+                        <View style={[styles.modalHeader, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.modalTitle}>{t('add_pilgrim')}</Text>
+                            <TouchableOpacity onPress={() => setShowAddModal(false)}><Text style={styles.closeText}>✕</Text></TouchableOpacity>
                         </View>
-
                         <ScrollView>
-                            <Text style={styles.label}>Email, Phone, or National ID</Text>
+                            <Text style={[styles.label, isRTL && { textAlign: 'right' }]}>{t('identifier_label')}</Text>
                             <TextInput
-                                style={styles.input}
-                                placeholder="e.g. user@example.com, +966..., or ID"
+                                style={[styles.input, isRTL && { textAlign: 'right' }]}
+                                placeholder={t('identifier_placeholder')}
                                 value={existingIdentifier}
                                 onChangeText={setExistingIdentifier}
                                 autoCapitalize="none"
                             />
-
-                            <TouchableOpacity
-                                style={[styles.addButton, adding && styles.buttonDisabled]}
-                                onPress={handleAddPilgrim}
-                                disabled={adding}
-                            >
-                                <Text style={styles.addButtonText}>{adding ? "Adding..." : "Add Pilgrim"}</Text>
+                            <TouchableOpacity style={[styles.addButton, adding && styles.buttonDisabled]} onPress={handleAddPilgrim} disabled={adding}>
+                                <Text style={styles.addButtonText}>{adding ? t('adding') : t('add_pilgrim')}</Text>
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
                 </KeyboardAvoidingView>
-
             </Modal>
-            {/* Confirmation Modals */}
+
             <ConfirmationModal
                 visible={showDeletePilgrimModal}
-                title="Remove Pilgrim"
-                message={`Are you sure you want to remove ${selectedPilgrim?.name} from this group?`}
+                title={t('remove_pilgrim_title')}
+                message={t('remove_pilgrim_confirm', { name: selectedPilgrim?.name })}
                 onConfirm={confirmRemovePilgrim}
                 onCancel={() => setShowDeletePilgrimModal(false)}
-                confirmText="Remove"
+                confirmText={t('remove')}
                 isDestructive={true}
             />
 
             <ConfirmationModal
                 visible={showDeleteGroupModal}
-                title="Delete Group"
-                message={`Are you sure you want to delete "${groupName}"? This action cannot be undone.`}
+                title={t('delete_group_question', { groupName })}
+                message={t('delete_group_confirm', { groupName })}
                 onConfirm={confirmDeleteGroup}
                 onCancel={() => setShowDeleteGroupModal(false)}
-                confirmText="Delete Group"
+                confirmText={t('delete_group_link')}
                 isDestructive={true}
             />
 
-            {/* Invite Moderator Modal */}
-            <Modal
-                visible={showInviteModal}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowInviteModal(false)}
-            >
+            <Modal visible={showInviteModal} transparent={true} animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
                     <View style={styles.modalContentSmall}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Invite Moderator</Text>
-                            <TouchableOpacity onPress={() => setShowInviteModal(false)}>
-                                <Text style={styles.closeText}>✕</Text>
-                            </TouchableOpacity>
+                        <View style={[styles.modalHeader, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.modalTitle}>{t('invite_moderator')}</Text>
+                            <TouchableOpacity onPress={() => setShowInviteModal(false)}><Text style={styles.closeText}>✕</Text></TouchableOpacity>
                         </View>
-
-                        <Text style={styles.label}>Email Address</Text>
+                        <Text style={[styles.label, isRTL && { textAlign: 'right' }]}>{t('email')}</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, isRTL && { textAlign: 'right' }]}
                             placeholder="colleague@example.com"
                             value={inviteEmail}
                             onChangeText={setInviteEmail}
                             keyboardType="email-address"
                             autoCapitalize="none"
                         />
-
-                        <TouchableOpacity
-                            style={[styles.addButton, inviting && styles.buttonDisabled]}
-                            onPress={handleInviteModerator}
-                            disabled={inviting}
-                        >
-                            <Text style={styles.addButtonText}>{inviting ? "Sending..." : "Send Invitation"}</Text>
+                        <TouchableOpacity style={[styles.addButton, inviting && styles.buttonDisabled]} onPress={handleInviteModerator} disabled={inviting}>
+                            <Text style={styles.addButtonText}>{inviting ? t('sending') : t('send_invitation')}</Text>
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
 
-            {/* Group Code Modal */}
-            <GroupCodeModal
-                visible={showGroupCodeModal}
-                onClose={() => setShowGroupCodeModal(false)}
-                groupId={groupId}
-                groupName={groupName}
-            />
-        </View >
+            <GroupCodeModal visible={showGroupCodeModal} onClose={() => setShowGroupCodeModal(false)} groupId={groupId} groupName={groupName} />
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-        mapCard: {
-            height: 220,
-            backgroundColor: 'white',
-            borderRadius: 16,
-            overflow: 'hidden',
-            marginBottom: 16,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.08,
-            shadowRadius: 10,
-            elevation: 4,
-        },
     container: {
         flex: 1,
-        backgroundColor: '#F8F9FA', // Professional light grey
+        backgroundColor: '#F8F9FA',
     },
     header: {
         backgroundColor: 'white',
@@ -633,11 +473,6 @@ const styles = StyleSheet.create({
     backButton: {
         padding: 4,
     },
-    backButtonText: {
-        fontSize: 24,
-        color: '#1A1A1A', // Darker, less "link-blue"
-        fontWeight: '300',
-    },
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
@@ -648,6 +483,18 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingHorizontal: 20,
         paddingTop: 24,
+    },
+    mapCard: {
+        height: 220,
+        backgroundColor: 'white',
+        borderRadius: 16,
+        overflow: 'hidden',
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        elevation: 4,
     },
     statsRow: {
         flexDirection: 'row',
@@ -668,7 +515,7 @@ const styles = StyleSheet.create({
     },
     statsLabel: {
         fontSize: 15,
-        color: '#64748B', // Slate 500
+        color: '#64748B',
         fontWeight: '500',
     },
     statsCount: {
@@ -732,47 +579,47 @@ const styles = StyleSheet.create({
     pilgrimCard: {
         backgroundColor: 'white',
         borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
+        padding: 12,
+        marginBottom: 8,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#F1F5F9', // Very subtle border
+        borderColor: '#F1F5F9',
     },
     pilgrimInfo: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
+        marginRight: 8,
     },
     avatarSmall: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        backgroundColor: '#F1F5F9', // Slate 100
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#F1F5F9',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
     },
     avatarTextSmall: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '600',
-        color: '#475569', // Slate 600
+        color: '#475569',
     },
     pilgrimName: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '600',
-        color: '#1E293B', // Slate 800
-        marginBottom: 2,
+        color: '#1E293B',
+        marginBottom: 1,
     },
     pilgrimId: {
-        fontSize: 13,
-        color: '#94A3B8', // Slate 400
+        fontSize: 12,
+        color: '#94A3B8',
     },
     statusIndicator: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 4,
+        marginTop: 2,
     },
     pilgrimCardSelected: {
         borderColor: '#2563EB',
@@ -784,168 +631,33 @@ const styles = StyleSheet.create({
     pilgrimActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
+    },
+    pilgrimIconBtn: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: '#F1F5F9',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pilgrimIconBtnPrimary: {
+        backgroundColor: '#2563EB',
     },
     statusDot: {
         width: 6,
         height: 6,
         borderRadius: 3,
-        marginRight: 6,
     },
     statusText: {
-        fontSize: 12,
+        fontSize: 11,
         color: '#64748B',
     },
-    deletePilgrimButton: {
-        padding: 8,
-        marginLeft: 8,
-    },
-    pilgrimActionButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 10,
-        backgroundColor: '#F8FAFC',
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        minWidth: 110,
-        alignItems: 'center',
-    },
-    pilgrimActionPrimary: {
-        backgroundColor: '#2563EB',
-        borderColor: '#2563EB',
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 6,
-        elevation: 3,
-    },
-    pilgrimActionText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#334155',
-    },
-    pilgrimActionTextPrimary: {
-        color: 'white',
-    },
-    profileHeaderRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginBottom: 12,
-    },
-    profileAvatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#E2E8F0',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    profileAvatarText: {
-        color: '#1E293B',
-        fontWeight: '700',
-        fontSize: 16,
-    },
-    profileName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#0F172A',
-    },
-    profileSub: {
-        fontSize: 12,
-        color: '#64748B',
-        marginTop: 2,
-    },
-    profileRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEF2F7',
-    },
-    profileActionRow: {
-        marginTop: 14,
-        alignItems: 'flex-start',
-    },
-    callButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#10B981',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 10,
-    },
-    callButtonText: {
-        color: 'white',
-        fontWeight: '700',
-        fontSize: 14,
-    },
-    profileLabel: {
-        color: '#64748B',
-        fontSize: 13,
-        fontWeight: '600',
-    },
-    profileValue: {
-        color: '#0F172A',
-        fontSize: 13,
-        fontWeight: '600',
-        maxWidth: '60%'
-    },
-    deletePilgrimText: {
-        fontSize: 18,
-        color: '#CBD5E1', // Very subtle X, turns red on action if needed, but keeping it neutral until pressed helps minimalism
-    },
-    emptyText: {
-        textAlign: 'center',
-        color: '#94A3B8',
-        marginTop: 40,
-        fontSize: 15,
-    },
-    fab: {
-        position: 'absolute',
-        bottom: 32,
-        right: 24,
-        backgroundColor: '#2563EB', // Blue 600
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
-        elevation: 6,
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-    },
-    fabText: {
-        color: 'white',
-        fontSize: 32,
-        marginTop: -4,
-        fontWeight: '300',
-    },
-    // Modal & Sheet Styles
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(15, 23, 42, 0.4)', // Slate 900 with opacity
+        backgroundColor: 'rgba(15, 23, 42, 0.4)',
         justifyContent: 'flex-end',
     },
-    modalContent: {
-        backgroundColor: 'white',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 24,
-        height: '85%', // Taller for add form
-    },
-    modalContentSmall: {
-        backgroundColor: 'white',
-        borderRadius: 20,
-        padding: 24,
-        width: '90%',
-        alignSelf: 'center',
-        marginBottom: 'auto',
-        marginTop: 'auto',
-    },
-    // Action Sheet Specific
     actionSheetContent: {
         backgroundColor: 'white',
         borderTopLeftRadius: 24,
@@ -967,13 +679,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#F1F5F9',
     },
-    actionOptionIcon: {
-        marginRight: 16,
-        // Assuming Ionicons are used here
-    },
     actionOptionText: {
         fontSize: 16,
-        color: '#334155', // Slate 700
+        color: '#334155',
         fontWeight: '500',
     },
     cancelOption: {
@@ -988,12 +696,27 @@ const styles = StyleSheet.create({
         color: '#64748B',
         fontWeight: '600',
     },
-    // Form Inputs
+    modalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        height: '85%',
+    },
+    modalContentSmall: {
+        backgroundColor: 'white',
+        borderRadius: 20,
+        padding: 24,
+        width: '90%',
+        alignSelf: 'center',
+        marginBottom: 'auto',
+        marginTop: 'auto',
+    },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 32,
+        marginBottom: 20,
     },
     modalTitle: {
         fontSize: 20,
@@ -1036,14 +759,104 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
     },
+    profileHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 12,
+    },
+    profileAvatar: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#E2E8F0',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    profileAvatarText: {
+        color: '#1E293B',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+    profileName: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    profileSub: {
+        fontSize: 12,
+        color: '#64748B',
+        marginTop: 2,
+    },
+    profileRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEF2F7',
+    },
+    profileLabel: {
+        color: '#64748B',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    profileValue: {
+        color: '#0F172A',
+        fontSize: 13,
+        fontWeight: '600',
+        maxWidth: '60%'
+    },
+    profileActionRow: {
+        marginTop: 14,
+        alignItems: 'flex-start',
+    },
+    callButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#10B981',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 10,
+    },
+    callButtonText: {
+        color: 'white',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    emptyText: {
+        textAlign: 'center',
+        color: '#94A3B8',
+        marginTop: 40,
+        fontSize: 15,
+    },
     deleteGroupButton: {
         marginTop: 40,
         paddingVertical: 16,
         alignItems: 'center',
     },
     deleteGroupText: {
-        color: '#EF4444', // Red 500
+        color: '#EF4444',
         fontSize: 15,
         fontWeight: '600',
+    },
+    fab: {
+        position: 'absolute',
+        bottom: 32,
+        right: 24,
+        backgroundColor: '#2563EB',
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 6,
+        shadowColor: '#2563EB',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+    },
+    deletePilgrimButton: {
+        padding: 8,
+        marginLeft: 8,
     },
 });
