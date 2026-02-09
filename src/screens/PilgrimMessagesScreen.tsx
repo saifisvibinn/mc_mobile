@@ -198,8 +198,8 @@ export default function PilgrimMessagesScreen({ navigation, route }: Props) {
                             style={[styles.playButton, (isPlaying && isSpeaking) && styles.playingButton]}
                             onPress={() => playTts(item.original_text!, item._id)}
                         >
-                            <Ionicons name={(isPlaying && isSpeaking) ? "pause" : "play"} size={24} color="white" />
-                            <Text style={styles.playText}>{(isPlaying && isSpeaking) ? 'Speaking...' : 'Play TTS'}</Text>
+                            <Ionicons name={(isPlaying && isSpeaking) ? "pause" : "play"} size={20} color="white" />
+                            <Text style={styles.playText}>{(isPlaying && isSpeaking) ? 'Playing...' : 'Play'}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -209,8 +209,8 @@ export default function PilgrimMessagesScreen({ navigation, route }: Props) {
                         style={[styles.playButton, isPlaying && styles.playingButton]}
                         onPress={() => playVoice(item.media_url!, item._id)}
                     >
-                        <Ionicons name={isPlaying ? "pause" : "play"} size={24} color="white" />
-                        <Text style={styles.playText}>{isPlaying ? 'Playing...' : 'Play Voice Note'}</Text>
+                        <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="white" />
+                        <Text style={styles.playText}>{isPlaying ? 'Playing...' : 'Play'}</Text>
                     </TouchableOpacity>
                 )}
 
@@ -248,7 +248,7 @@ export default function PilgrimMessagesScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F5',
+        backgroundColor: '#F1F5F9',
     },
     header: {
         flexDirection: 'row',
@@ -256,18 +256,20 @@ const styles = StyleSheet.create({
         padding: 16,
         backgroundColor: 'white',
         borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
+        borderBottomColor: '#E2E8F0',
     },
     backBtn: {
         marginRight: 16,
+        padding: 4,
     },
     title: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#0F172A',
     },
     list: {
         padding: 16,
+        paddingBottom: 32,
     },
     loader: {
         marginTop: 50,
@@ -275,7 +277,8 @@ const styles = StyleSheet.create({
     empty: {
         textAlign: 'center',
         marginTop: 50,
-        color: '#999',
+        color: '#94A3B8',
+        fontSize: 15,
     },
     messageCard: {
         padding: 16,
@@ -283,111 +286,122 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
         elevation: 2,
     },
     messageCardModerator: {
-        backgroundColor: 'white',
-        borderLeftWidth: 4,
-        borderLeftColor: '#007AFF', // Blue for moderators
+        backgroundColor: '#FFFFFF',
     },
     messageCardPilgrim: {
-        backgroundColor: '#F0F9FF', // Light blue/white for pilgrims
-        borderLeftWidth: 4,
-        borderLeftColor: '#64748B', // Grey/Slate for pilgrims
+        backgroundColor: '#F8FAFC',
     },
     headerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
-    },
-    senderName: {
-        fontWeight: 'bold',
-        fontSize: 16,
-        marginRight: 8,
-    },
-    senderRole: {
-        fontSize: 12,
-        color: 'white',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    roleModerator: {
-        backgroundColor: '#007AFF',
-    },
-    rolePilgrim: {
-        backgroundColor: '#64748B',
-    },
-    content: {
-        fontSize: 16,
-        color: '#333',
-        marginBottom: 8,
-    },
-    playButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#34C759',
-        padding: 12,
-        borderRadius: 8,
-        alignSelf: 'flex-start',
-        marginBottom: 8,
-    },
-    playingButton: {
-        backgroundColor: '#FF3B30',
-    },
-    playText: {
-        color: 'white',
-        fontWeight: 'bold',
-        marginLeft: 8,
-    },
-    time: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 4,
-        alignSelf: 'flex-end',
-    },
-    urgentMessage: {
-        borderLeftColor: '#EF4444',
-        borderLeftWidth: 6,
+        justifyContent: 'space-between',
+        marginBottom: 10,
     },
     headerLeft: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
     },
+    senderName: {
+        fontWeight: '700',
+        fontSize: 15,
+        color: '#0F172A',
+    },
+    senderRole: {
+        fontSize: 10,
+        color: 'white',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 10,
+        overflow: 'hidden',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    roleModerator: {
+        backgroundColor: '#3B82F6',
+    },
+    rolePilgrim: {
+        backgroundColor: '#64748B',
+    },
+    content: {
+        fontSize: 15,
+        color: '#334155',
+        lineHeight: 21,
+        marginBottom: 8,
+    },
+    playButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#3B82F6',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+        marginBottom: 8,
+        minWidth: 100,
+    },
+    playingButton: {
+        backgroundColor: '#EF4444',
+    },
+    playText: {
+        color: 'white',
+        marginLeft: 6,
+        fontWeight: '600',
+        fontSize: 13,
+    },
+    time: {
+        fontSize: 11,
+        color: '#94A3B8',
+        marginTop: 4,
+    },
+    urgentMessage: {
+        backgroundColor: '#FEF2F2',
+        borderWidth: 1,
+        borderColor: '#FEE2E2',
+    },
     urgentBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#EF4444',
         paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
+        paddingVertical: 3,
+        borderRadius: 10,
         marginLeft: 8,
     },
     urgentText: {
         color: 'white',
-        fontSize: 10,
-        fontWeight: 'bold',
-        marginLeft: 4,
+        fontSize: 9,
+        fontWeight: '700',
+        marginLeft: 3,
+        letterSpacing: 0.5,
     },
     ttsHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 8,
+        backgroundColor: '#DBEAFE',
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
     },
     ttsLabel: {
-        fontSize: 14,
-        color: '#2563EB',
+        fontSize: 12,
+        color: '#1E40AF',
         fontWeight: '600',
-        marginLeft: 6,
+        marginLeft: 5,
     },
     ttsText: {
-        fontSize: 16,
-        color: '#333',
-        marginBottom: 12,
-        fontStyle: 'italic',
+        fontSize: 15,
+        color: '#1E293B',
+        marginBottom: 10,
+        lineHeight: 21,
     },
 });

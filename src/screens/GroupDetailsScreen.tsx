@@ -318,6 +318,17 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
                         </TouchableOpacity>
 
                         <TouchableOpacity
+                            style={styles.actionOption}
+                            onPress={() => {
+                                setShowActionMenu(false);
+                                navigation.navigate('ModeratorMessagesScreen', { groupId, groupName });
+                            }}
+                        >
+                            <Ionicons name="chatbubbles-outline" size={22} color="#334155" style={styles.actionOptionIcon} />
+                            <Text style={styles.actionOptionText}>View Sent Messages</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                             style={styles.cancelOption}
                             onPress={() => setShowActionMenu(false)}
                         >

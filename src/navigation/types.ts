@@ -11,6 +11,7 @@ export type RootStackParamList = {
     EditProfile: undefined;
     PilgrimSignUp: undefined;
     PilgrimMessagesScreen: { groupId: string; groupName: string };
+    ModeratorMessagesScreen: { groupId: string; groupName: string };
     JoinGroup: { userId: string };
     CommunicationScreen: { groupId: string };
 };
