@@ -266,5 +266,7 @@
     "password_too_short": "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل",
     "delete": "حذف",
     "delete_group_link": "حذف المجموعة",
-    "failed_resend_code": "فشل في إعادة إرسال الرمز"
+    "failed_resend_code": "فشل في إعادة إرسال الرمز",
+    "share_location": "مشاركة الموقع",
+    "pilgrim_location": "موقع الحاج"
 }

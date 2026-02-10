@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, Alert, Linking, Share } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
@@ -14,6 +14,7 @@ import Map from '../components/Map';
 import ComposeMessageModal from '../components/ComposeMessageModal';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { socketService } from '../services/socket';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupDetails'>;
 
@@ -83,8 +84,43 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
 
     useEffect(() => {
         if (!isFocused) return;
-        const interval = setInterval(() => fetchGroupDetails({ silent: true }), 15000);
-        return () => clearInterval(interval);
+        // const interval = setInterval(() => fetchGroupDetails({ silent: true }), 15000); // Poll removed for socket testing
+
+        socketService.connect();
+        socketService.joinGroup(groupId);
+
+        const handleLocationUpdate = (data: any) => {
+            if (data.pilgrimId) {
+                setPilgrims(prev => prev.map(p =>
+                    p._id === data.pilgrimId ? {
+                        ...p,
+                        location: { lat: data.lat, lng: data.lng, timestamp: new Date() },
+                        isSos: data.isSos // Update SOS status
+                    } : p
+                ));
+            }
+        };
+
+        const handleSOS = (data: any) => {
+            Alert.alert(
+                t('sos_alert'),
+                `${t('pilgrim')} sent SOS!`,
+                [
+                    { text: t('dismiss'), style: 'cancel' },
+                    { text: t('location'), onPress: () => setSelectedPilgrimId(data.pilgrimId) }
+                ]
+            );
+        };
+
+        socketService.onLocationUpdate(handleLocationUpdate);
+        socketService.onSOSAlert(handleSOS);
+
+        return () => {
+            // clearInterval(interval);
+            socketService.leaveGroup(groupId);
+            socketService.offLocationUpdate(handleLocationUpdate);
+            socketService.offSOSAlert(handleSOS);
+        };
     }, [isFocused, groupId]);
 
     const handleAddPilgrim = async () => {
@@ -142,6 +178,22 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
         }
     };
 
+    const handleShareLocation = async (pilgrim: Pilgrim) => {
+        if (!pilgrim.location?.lat || !pilgrim.location?.lng) {
+            showToast(t('no_location_data'), 'error');
+            return;
+        }
+        const url = `https://www.google.com/maps/search/?api=1&query=${pilgrim.location.lat},${pilgrim.location.lng}`;
+        try {
+            await Share.share({
+                message: `${t('pilgrim_location')} (${pilgrim.full_name}): ${url}`,
+                url: url, // iOS
+            });
+        } catch (error) {
+            console.log(error);
+        }
+    };
+
     const confirmDeleteGroup = async () => {
         try {
             setLoading(true);
@@ -162,7 +214,8 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
         latitude: p.location!.lat,
         longitude: p.location!.lng,
         title: p.full_name,
-        description: `${t('battery')}: ${p.battery_percent || '?'}%`
+        description: `${t('battery')}: ${p.battery_percent || '?'}%`,
+        pinColor: (p as any).isSos ? 'red' : 'blue' // Use red for SOS
     }));
 
     const getInitialRegion = () => {
@@ -367,17 +420,37 @@ export default function GroupDetailsScreen({ route, navigation }: Props) {
                             <Text style={styles.profileLabel}>{t('battery')}</Text>
                             <Text style={styles.profileValue}>{profilePilgrim?.battery_percent !== undefined ? `${profilePilgrim.battery_percent}%` : '-'}</Text>
                         </View>
-                        {profilePilgrim?.phone_number && (
-                            <View style={[styles.profileActionRow, isRTL && { alignSelf: 'flex-end' }]}>
-                                <TouchableOpacity style={[styles.callButton, isRTL && { flexDirection: 'row-reverse' }]} onPress={() => Linking.openURL(`tel:${profilePilgrim.phone_number}`)}>
-                                    <Ionicons name="call" size={16} color="white" style={{ [isRTL ? 'marginLeft' : 'marginRight']: 6 }} />
-                                    <Text style={styles.callButtonText}>{t('call_pilgrim')}</Text>
-                                </TouchableOpacity>
+                        <View style={styles.modalActionsContainer}>
+                            <View style={[styles.primaryActionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                                {profilePilgrim?.phone_number && (
+                                    <TouchableOpacity
+                                        style={[styles.actionButton, styles.callBuildAction]}
+                                        onPress={() => Linking.openURL(`tel:${profilePilgrim.phone_number}`)}
+                                    >
+                                        <Ionicons name="call" size={20} color="white" />
+                                        <Text style={styles.actionButtonText}>{t('call_pilgrim')}</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                {profilePilgrim?.location?.lat !== undefined && profilePilgrim?.location?.lng !== undefined && (
+                                    <TouchableOpacity
+                                        style={[styles.actionButton, styles.shareBuildAction]}
+                                        onPress={() => profilePilgrim && handleShareLocation(profilePilgrim)}
+                                    >
+                                        <Ionicons name="share-outline" size={20} color="white" />
+                                        <Text style={styles.actionButtonText}>{t('share_location')}</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
-                        )}
-                        <TouchableOpacity style={[styles.deletePilgrimButton, { marginTop: 10, alignSelf: 'center' }]} onPress={() => { setShowProfileModal(false); setSelectedPilgrim({ id: profilePilgrim!._id, name: profilePilgrim!.full_name }); setShowDeletePilgrimModal(true); }}>
-                            <Text style={{ color: '#EF4444', fontWeight: '600' }}>{t('remove_pilgrim_title')}</Text>
-                        </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.removeButton, isRTL && { flexDirection: 'row-reverse' }]}
+                                onPress={() => { setShowProfileModal(false); setSelectedPilgrim({ id: profilePilgrim!._id, name: profilePilgrim!.full_name }); setShowDeletePilgrimModal(true); }}
+                            >
+                                <Ionicons name="trash-outline" size={18} color="#EF4444" style={{ marginRight: 8, marginLeft: 8 }} />
+                                <Text style={styles.removeButtonText}>{t('remove_pilgrim_title')}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </TouchableOpacity>
             </Modal>
@@ -806,21 +879,54 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         maxWidth: '60%'
     },
-    profileActionRow: {
-        marginTop: 14,
-        alignItems: 'flex-start',
+    modalActionsContainer: {
+        marginTop: 24,
+        gap: 16,
     },
-    callButton: {
+    primaryActionsRow: {
+        flexDirection: 'row',
+        gap: 12,
+        justifyContent: 'center',
+    },
+    actionButton: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#10B981',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 10,
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        gap: 8,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
     },
-    callButtonText: {
+    callBuildAction: {
+        backgroundColor: '#10B981', // Emerald 500
+    },
+    shareBuildAction: {
+        backgroundColor: '#3B82F6', // Blue 500
+    },
+    actionButtonText: {
         color: 'white',
-        fontWeight: '700',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    removeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        borderRadius: 12,
+        backgroundColor: '#FEF2F2', // Red 50
+        borderWidth: 1,
+        borderColor: '#FEE2E2', // Red 100
+    },
+    removeButtonText: {
+        color: '#EF4444', // Red 500
+        fontWeight: '600',
         fontSize: 14,
     },
     emptyText: {

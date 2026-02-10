@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { socketService } from '../services/socket';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PilgrimDashboard'>;
 
@@ -28,20 +29,52 @@ interface GroupInfo {
 
 export default function PilgrimDashboard({ navigation, route }: Props) {
     const { t, i18n } = useTranslation();
-    const isSharingLocation = true;
     const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
     const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
     const [sosActive, setSosActive] = useState(false);
+    const [isSharingLocation, setIsSharingLocation] = useState(true);
+    const [locationSubscription, setLocationSubscription] = useState<Location.LocationSubscription | null>(null);
+    const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const [unreadCount, setUnreadCount] = useState(0);
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const sheetAnim = useRef(new Animated.Value(40)).current;
     const { showToast } = useToast();
-    const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+
+    // Initial setup & Background interval
+    useEffect(() => {
+        // Send initial location
+        getCurrentLocation();
+
+        // Set up 5-minute interval for normal updates
+        locationIntervalRef.current = setInterval(() => {
+            if (!sosActive) getCurrentLocation();
+        }, 5 * 60 * 1000);
+
+        return () => {
+            if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+            if (locationSubscription) locationSubscription.remove();
+        };
+    }, [sosActive]); // Re-run if SOS state changes (though logic handles it)
+
+    // SOS Mode: Real-time tracking
+    useEffect(() => {
+        if (sosActive) {
+            startRealTimeTracking();
+        } else {
+            stopRealTimeTracking();
+            getCurrentLocation(); // Send one last update or revert to normal
+        }
+    }, [sosActive]);
 
     useEffect(() => {
         fetchGroupInfo();
         setupBatteryListener();
-        startLiveLocationTracking();
+
+        socketService.connect();
+
+        return () => {
+            // socketService.disconnect(); // Keep connected?
+        };
 
         // Start SOS pulse animation
         Animated.loop(
@@ -66,9 +99,8 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
         }).start();
 
         return () => {
-            if (locationSubscription.current) {
-                locationSubscription.current.remove();
-                locationSubscription.current = null;
+            if (locationSubscription) {
+                locationSubscription.remove();
             }
         };
     }, []);
@@ -83,9 +115,13 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
     // Poll for unread messages when we have a group
     useEffect(() => {
         if (!groupInfo) return;
+        socketService.joinGroup(groupInfo.group_id);
         fetchUnreadCount(groupInfo.group_id);
-        const interval = setInterval(() => fetchUnreadCount(groupInfo.group_id), 15000);
-        return () => clearInterval(interval);
+        // const interval = setInterval(() => fetchUnreadCount(groupInfo.group_id), 15000);
+        return () => {
+            // clearInterval(interval);
+            socketService.leaveGroup(groupInfo.group_id);
+        };
     }, [groupInfo]);
 
     const fetchUnreadCount = async (gId: string) => {
@@ -130,32 +166,50 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
                 longitude: location.coords.longitude,
                 battery_percent: batteryPercent
             });
+
+            if (groupInfo && route.params?.userId) {
+                socketService.sendLocation({
+                    groupId: groupInfo.group_id,
+                    pilgrimId: route.params.userId,
+                    lat: location.coords.latitude,
+                    lng: location.coords.longitude,
+                    isSos: sosActive // Pass SOS status
+                });
+            }
         } catch (e) {
             // Silent error for location updates
         }
     };
 
-    const startLiveLocationTracking = async () => {
+    const getCurrentLocation = async () => {
+        if (!isSharingLocation) return;
         try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') return;
-
-            if (locationSubscription.current) {
-                locationSubscription.current.remove();
-            }
-
-            locationSubscription.current = await Location.watchPositionAsync(
-                {
-                    accuracy: Location.Accuracy.High,
-                    timeInterval: 15000,
-                    distanceInterval: 10
-                },
-                (location) => {
-                    handleLocationUpdate(location);
-                }
-            );
+            const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            handleLocationUpdate(location);
         } catch (e) {
-            // Silent failure for tracking setup
+            console.log('Error getting current location', e);
+        }
+    };
+
+    const startRealTimeTracking = async () => {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+
+        const sub = await Location.watchPositionAsync(
+            {
+                accuracy: Location.Accuracy.High,
+                timeInterval: 5000,
+                distanceInterval: 10,
+            },
+            handleLocationUpdate
+        );
+        setLocationSubscription(sub);
+    };
+
+    const stopRealTimeTracking = () => {
+        if (locationSubscription) {
+            locationSubscription.remove();
+            setLocationSubscription(null);
         }
     };
 
@@ -178,6 +232,15 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
         setSosActive(true);
         try {
             await api.post('/pilgrim/sos', {});
+            if (groupInfo && route.params?.userId) {
+                socketService.sendSOS({
+                    groupId: groupInfo.group_id,
+                    pilgrimId: route.params.userId,
+                    lat: 0, // Should get current loc?
+                    lng: 0,
+                    message: "SOS Alert"
+                });
+            }
             showToast(t('alert_sent'), 'success');
             setTimeout(() => setSosActive(false), 1500);
         } catch (error) {

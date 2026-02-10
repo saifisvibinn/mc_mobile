@@ -133,8 +133,10 @@ export default function ModeratorDashboard({ route, navigation }: Props) {
             fetchProfile();
             fetchNotifications();
             setupLocationTracking(); // Start tracking
-            const intervalId = setInterval(fetchNotifications, 15000);
-            return () => clearInterval(intervalId);
+            // const intervalId = setInterval(fetchNotifications, 15000); // Polling removed
+            return () => {
+                // clearInterval(intervalId);
+            };
         }, [])
     );
 

@@ -266,5 +266,7 @@
     "alert_sent_success": "Alert Sent",
     "delete": "Delete",
     "delete_group_link": "Delete Group",
-    "failed_resend_code": "Failed to resend code"
+    "failed_resend_code": "Failed to resend code",
+    "share_location": "Share Location",
+    "pilgrim_location": "Pilgrim Location"
 }
