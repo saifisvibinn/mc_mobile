@@ -5,6 +5,11 @@ node_modules/
 
 google-services.json
 
+# Debug logs
+adb_log.txt
+*.log
+
+
 # Expo
 .expo/
 dist/
