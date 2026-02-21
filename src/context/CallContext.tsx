@@ -2,15 +2,8 @@ import React, { createContext, useContext, useState, useRef, useEffect, ReactNod
 import { Alert } from 'react-native';
 import CallModal from '../components/CallModal';
 import { socketService } from '../services/socket';
-
-// Safe wrapper — InCallManager can be null before native module loads
-let _InCallManager: any = null;
-try { _InCallManager = require('react-native-incall-manager').default; } catch (_) { }
-const safeInCall = {
-    start: (opts?: any) => { try { _InCallManager?.start(opts); } catch (_) { } },
-    stop: () => { try { _InCallManager?.stop(); } catch (_) { } },
-    setForceSpeakerphoneOn: (v: boolean) => { try { _InCallManager?.setForceSpeakerphoneOn(v); } catch (_) { } },
-};
+import InCallManager from 'react-native-incall-manager';
+import notifee from '@notifee/react-native';
 
 // WebRTC imports (conditional for expo go)
 let mediaDevices: any = null;
@@ -95,13 +88,15 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
 
             console.log('Incoming call from:', from, callerInfo);
+            const resolvedCaller = callerInfo || { id: from, name: 'Caller', role: 'Unknown' };
+
             setCallState({
                 isActive: false,
                 isIncoming: true,
                 isOutgoing: false,
                 isSpeakerOn: false,
                 callStatus: 'ringing',
-                remoteUser: callerInfo || { id: from, name: 'Caller', role: 'Unknown' },
+                remoteUser: resolvedCaller,
             });
 
             pendingOffer.current = offer;
@@ -229,8 +224,10 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const answerCall = async () => {
         if (!callState.remoteUser) return;
+        // Dismiss the Notifee incoming call notification
+        notifee.cancelAllNotifications().catch(() => { });
         setCallState(prev => ({ ...prev, isActive: true, isIncoming: false, callStatus: 'connected' }));
-        await setupPeerConnection(callState.remoteUser!.id, false); // false = not caller
+        await setupPeerConnection(callState.remoteUser!.id, false);
     };
 
     const declineCall = () => {
@@ -267,6 +264,9 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const cleanupCall = () => {
+        try { (InCallManager as any).stopRingtone(); } catch (e) { /* ignore */ }
+        // Dismiss any lingering Notifee call notification
+        notifee.cancelAllNotifications().catch(() => { });
         if (pc.current) {
             pc.current.close();
             pc.current = null;
@@ -368,8 +368,31 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const toggleSpeaker = () => {
         const newSpeakerState = !callState.isSpeakerOn;
         setCallState(prev => ({ ...prev, isSpeakerOn: newSpeakerState }));
-        safeInCall.setForceSpeakerphoneOn(newSpeakerState);
+
+        // Use InCallManager to actually route audio
+        if (newSpeakerState) {
+            InCallManager.setForceSpeakerphoneOn(true);
+        } else {
+            InCallManager.setForceSpeakerphoneOn(false);
+        }
     };
+
+    // Ringtone: play when incoming, stop when no longer incoming
+    useEffect(() => {
+        if (callState.isIncoming && !callState.isActive) {
+            console.log('[CallContext] Starting ringtone');
+            try {
+                // startRingtone(ringtone, vibrate, url, type)
+                (InCallManager as any).startRingtone('_BUNDLE_', true, '', 'alert');
+            } catch (e) {
+                console.log('[CallContext] startRingtone not supported:', e);
+            }
+        } else {
+            try {
+                (InCallManager as any).stopRingtone();
+            } catch (e) { /* ignore */ }
+        }
+    }, [callState.isIncoming, callState.isActive]);
 
     // Manage InCallManager lifecycle
     const inCallManagerStarted = useRef(false);
