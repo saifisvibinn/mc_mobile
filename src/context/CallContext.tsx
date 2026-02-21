@@ -2,8 +2,18 @@ import React, { createContext, useContext, useState, useRef, useEffect, ReactNod
 import { Alert } from 'react-native';
 import CallModal from '../components/CallModal';
 import { socketService } from '../services/socket';
-import InCallManager from 'react-native-incall-manager';
 import notifee from '@notifee/react-native';
+
+// Safe wrapper — InCallManager can be null before native module loads
+let _InCallManager: any = null;
+try { _InCallManager = require('react-native-incall-manager').default; } catch (_) { }
+const safeInCall = {
+    start: (opts?: any) => { try { _InCallManager?.start(opts); } catch (_) { } },
+    stop: () => { try { _InCallManager?.stop(); } catch (_) { } },
+    setForceSpeakerphoneOn: (v: boolean) => { try { _InCallManager?.setForceSpeakerphoneOn(v); } catch (_) { } },
+    startRingtone: (...args: any[]) => { try { (_InCallManager as any)?.startRingtone(...args); } catch (_) { } },
+    stopRingtone: () => { try { (_InCallManager as any)?.stopRingtone(); } catch (_) { } }
+};
 
 // WebRTC imports (conditional for expo go)
 let mediaDevices: any = null;
@@ -264,7 +274,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const cleanupCall = () => {
-        try { (InCallManager as any).stopRingtone(); } catch (e) { /* ignore */ }
+        safeInCall.stopRingtone();
         // Dismiss any lingering Notifee call notification
         notifee.cancelAllNotifications().catch(() => { });
         if (pc.current) {
@@ -369,28 +379,16 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newSpeakerState = !callState.isSpeakerOn;
         setCallState(prev => ({ ...prev, isSpeakerOn: newSpeakerState }));
 
-        // Use InCallManager to actually route audio
-        if (newSpeakerState) {
-            InCallManager.setForceSpeakerphoneOn(true);
-        } else {
-            InCallManager.setForceSpeakerphoneOn(false);
-        }
+        safeInCall.setForceSpeakerphoneOn(newSpeakerState);
     };
 
     // Ringtone: play when incoming, stop when no longer incoming
     useEffect(() => {
         if (callState.isIncoming && !callState.isActive) {
             console.log('[CallContext] Starting ringtone');
-            try {
-                // startRingtone(ringtone, vibrate, url, type)
-                (InCallManager as any).startRingtone('_BUNDLE_', true, '', 'alert');
-            } catch (e) {
-                console.log('[CallContext] startRingtone not supported:', e);
-            }
+            safeInCall.startRingtone('_BUNDLE_', true, '', 'alert');
         } else {
-            try {
-                (InCallManager as any).stopRingtone();
-            } catch (e) { /* ignore */ }
+            safeInCall.stopRingtone();
         }
     }, [callState.isIncoming, callState.isActive]);
 
