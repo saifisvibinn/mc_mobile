@@ -1,5 +1,19 @@
 import { registerRootComponent } from 'expo';
+import { LogBox } from 'react-native';
 import './src/i18n'; // Initialize i18n
+
+// Suppress noisy third-party library warnings that don't affect functionality
+LogBox.ignoreLogs([
+    'expo-notifications',
+    'i18next',
+    '[i18next]',
+    'locize',
+    'InCallManager',
+    'Cannot read property',
+    'TypeError: Cannot read',
+    'new NativeEventEmitter',
+    'EventEmitter.removeListener',
+]);
 
 import App from './App';
 

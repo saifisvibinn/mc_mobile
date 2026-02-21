@@ -2,7 +2,15 @@ import React, { createContext, useContext, useState, useRef, useEffect, ReactNod
 import { Alert } from 'react-native';
 import CallModal from '../components/CallModal';
 import { socketService } from '../services/socket';
-import InCallManager from 'react-native-incall-manager';
+
+// Safe wrapper — InCallManager can be null before native module loads
+let _InCallManager: any = null;
+try { _InCallManager = require('react-native-incall-manager').default; } catch (_) { }
+const safeInCall = {
+    start: (opts?: any) => { try { _InCallManager?.start(opts); } catch (_) { } },
+    stop: () => { try { _InCallManager?.stop(); } catch (_) { } },
+    setForceSpeakerphoneOn: (v: boolean) => { try { _InCallManager?.setForceSpeakerphoneOn(v); } catch (_) { } },
+};
 
 // WebRTC imports (conditional for expo go)
 let mediaDevices: any = null;
@@ -360,25 +368,19 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const toggleSpeaker = () => {
         const newSpeakerState = !callState.isSpeakerOn;
         setCallState(prev => ({ ...prev, isSpeakerOn: newSpeakerState }));
-
-        // Use InCallManager to actually route audio
-        if (newSpeakerState) {
-            InCallManager.setForceSpeakerphoneOn(true);
-        } else {
-            InCallManager.setForceSpeakerphoneOn(false);
-        }
+        safeInCall.setForceSpeakerphoneOn(newSpeakerState);
     };
 
     // Manage InCallManager lifecycle
+    const inCallManagerStarted = useRef(false);
     useEffect(() => {
         if (callState.isActive) {
-            // Start audio session when call becomes active
-            InCallManager.start({ media: 'audio' });
-            // Default to earpiece
-            InCallManager.setForceSpeakerphoneOn(false);
-        } else if (!callState.isIncoming && !callState.isOutgoing) {
-            // Stop audio session when call ends
-            InCallManager.stop();
+            safeInCall.start({ media: 'audio' });
+            inCallManagerStarted.current = true;
+            safeInCall.setForceSpeakerphoneOn(false);
+        } else if (!callState.isIncoming && !callState.isOutgoing && inCallManagerStarted.current) {
+            safeInCall.stop();
+            inCallManagerStarted.current = false;
         }
     }, [callState.isActive, callState.isIncoming, callState.isOutgoing]);
 

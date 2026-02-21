@@ -66,7 +66,7 @@ const VoiceMessage = ({
             </TouchableOpacity>
 
             <View style={styles.voiceContent}>
-                <View style={[styles.waveformContainer, isRTL && { flexDirection: 'row-reverse' }]}>
+                <View style={[styles.waveformContainer]}>
                     {bars.map((height, index) => {
                         // Simple visual progress: bars before the relative progress index are filled
                         const barProgress = index / bars.length;
@@ -238,7 +238,6 @@ export default function PilgrimMessagesScreen({ route, navigation }: Props) {
             <View style={[
                 styles.messageRow,
                 isModeratorSender ? styles.rowLeft : styles.rowRight,
-                isRTL && { flexDirection: isModeratorSender ? 'row-reverse' : 'row' }
             ]}>
                 {/* Avatar only for Moderator (Left side) */}
                 {isModeratorSender && (

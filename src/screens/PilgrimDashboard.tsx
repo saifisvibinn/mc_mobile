@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Animated, Alert, Platform } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Alert, LayoutAnimation, UIManager, Platform } from 'react-native';
 import Map from '../components/Map';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
@@ -16,6 +16,11 @@ import { socketService } from '../services/socket';
 import { getUserId, getUserName } from '../services/user';
 import { openNavigation } from '../utils/openNavigation';
 import { useCall } from '../context/CallContext';
+
+// Must be called once at module level, not inside render
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PilgrimDashboard'>;
 
@@ -56,6 +61,12 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const sheetAnim = useRef(new Animated.Value(40)).current;
     const [suggestedAreas, setSuggestedAreas] = useState<any[]>([]);
+    const [areasExpanded, setAreasExpanded] = useState(false);
+
+    const toggleAreas = useCallback(() => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setAreasExpanded(prev => !prev);
+    }, []);
 
     const { showToast } = useToast();
 
@@ -458,11 +469,28 @@ export default function PilgrimDashboard({ navigation, route }: Props) {
                             </TouchableOpacity>
                         )}
 
-                        {/* Suggested Areas Section */}
+                        {/* Suggested Areas - Collapsible */}
                         {suggestedAreas.length > 0 && (
                             <View style={styles.suggestedSection}>
-                                <Text style={[styles.suggestedTitle, { textAlign: isRTL ? 'right' : 'left' }]}>📍 {t('suggested_areas')}</Text>
-                                {suggestedAreas.map(area => (
+                                <TouchableOpacity
+                                    style={styles.suggestedHeader}
+                                    onPress={toggleAreas}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={styles.suggestedHeaderLeft}>
+                                        <Text style={styles.suggestedHeaderPin}>📍</Text>
+                                        <Text style={styles.suggestedTitle}>{t('suggested_areas')}</Text>
+                                        <View style={styles.suggestedBadge}>
+                                            <Text style={styles.suggestedBadgeText}>{suggestedAreas.length}</Text>
+                                        </View>
+                                    </View>
+                                    <Ionicons
+                                        name={areasExpanded ? 'chevron-up' : 'chevron-down'}
+                                        size={18}
+                                        color="#64748B"
+                                    />
+                                </TouchableOpacity>
+                                {areasExpanded && suggestedAreas.map(area => (
                                     <View key={area._id} style={styles.suggestedRow}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.suggestedName}>{area.name}</Text>
@@ -732,16 +760,44 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     suggestedSection: {
-        marginTop: 20,
-        paddingTop: 16,
+        marginTop: 12,
+        paddingTop: 12,
         borderTopWidth: 1,
         borderTopColor: '#F1F5F9',
+    },
+    suggestedHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 6,
+        marginBottom: 2,
+    },
+    suggestedHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    suggestedHeaderPin: {
+        fontSize: 14,
     },
     suggestedTitle: {
         fontSize: 14,
         fontWeight: '700',
         color: '#64748B',
-        marginBottom: 12,
+    },
+    suggestedBadge: {
+        backgroundColor: '#E2E8F0',
+        borderRadius: 10,
+        minWidth: 20,
+        height: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 6,
+    },
+    suggestedBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#475569',
     },
     suggestedRow: {
         flexDirection: 'row',

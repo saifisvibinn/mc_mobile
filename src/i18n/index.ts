@@ -3,19 +3,15 @@ import { initReactI18next } from 'react-i18next';
 import * as Localization from 'expo-localization';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { I18nManager, NativeModules } from 'react-native';
-import * as Updates from 'expo-updates';
 
 const reloadApp = async () => {
-    if (__DEV__) {
+    try {
         NativeModules.DevSettings.reload();
-    } else {
-        try {
-            await Updates.reloadAsync();
-        } catch (e) {
-            console.error('Failed to reload app for RTL changes', e);
-        }
+    } catch (e) {
+        console.error('Failed to reload app for RTL changes', e);
     }
 };
+
 
 // Import translation files
 import en from './translations/en.json';
