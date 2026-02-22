@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Default to the railway production url if not provided in .env
-export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mcbackendapp-production.up.railway.app/api';
+export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mcbackendapp-production-aaa7.up.railway.app/api';
 
 export const api = axios.create({
     baseURL: BASE_URL,
